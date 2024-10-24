@@ -2,3 +2,5 @@
 .vscode
 out
 CMakeLists.txt
+main.cpp
+main.exe
