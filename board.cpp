@@ -40,8 +40,8 @@ class Board
     uint8_t whiteWalls = 10;
     uint8_t blackWalls = 10;
 
-    unordered_set<uint8_t> wallsOnBoard = {};
-    unordered_set<uint8_t> takenWallPlaces = {};
+    bool wallsOnBoard[128] = {false};
+    bool takenWallPlaces[128] = {false};
     unordered_set<uint16_t> walledOffCells;
 
     char winner = 0;
@@ -62,9 +62,26 @@ class Board
             walledOffCells.insert(makePair(16 * (i + 1) + j, 16 * (i + 1) + (j + 1)));
         }
     } 
+    
+
+    void removeBlockades(uint8_t wallPlacement){
+        bool isHorizontal = wallPlacement & 0x40;
+        uint8_t i = (wallPlacement & 56) >> 3;
+        uint8_t j = wallPlacement & 7;
+
+        if(isHorizontal){
+            walledOffCells.erase(makePair(16 * i + j, 16 * (i + 1) + j));
+            walledOffCells.erase(makePair(16 * i + j + 1, 16 * (i + 1) + (j + 1)));
+        }
+
+        if(!isHorizontal){
+            walledOffCells.erase(makePair(16 * i + j, 16 * i + (j + 1)));
+            walledOffCells.erase(makePair(16 * (i + 1) + j, 16 * (i + 1) + (j + 1)));
+        }
+    } 
 
 
-    bool bfs(uint8_t startCell, bool player, pair<uint8_t, uint8_t> blockade1, pair<uint8_t, uint8_t> blockade2){
+    bool bfs(uint8_t startCell, bool player){
         queue<uint8_t> todo = {};
         uint8_t parent[137] = {0};
         bool seen[137] = {false};
@@ -87,9 +104,7 @@ class Board
             vector<uint8_t> neighbours = getNeighbours(curCell);
 
             for (uint8_t neighbour : neighbours){
-                pair<uint8_t, uint8_t> step =  {min(curCell, neighbour), max(curCell, neighbour)};
-                bool blocked = (blockade1 == step) || (blockade2 == step);
-                if(neighbour <= 136 && !seen[neighbour] && !blocked){
+                if(neighbour <= 136 && !seen[neighbour]){
                     todo.push(neighbour);
                     parent[neighbour] = curCell;
                     seen[neighbour] = true;
@@ -144,27 +159,57 @@ class Board
     }
 
 
-    void takeWallPlaces(uint8_t wallPlacement){
-        takenWallPlaces.insert(wallPlacement);
+    void giveWallPlaces(uint8_t wallPlacement){
+        takenWallPlaces[wallPlacement] = false;
         bool isHorizontal = wallPlacement & 0x40;
 
         if (isHorizontal){
-            takenWallPlaces.insert(wallPlacement - 0x40);
-            if((wallPlacement & 7) < 7){
-                takenWallPlaces.insert(wallPlacement + 1);
+            if(!wallsOnBoard[wallPlacement - 0x40 + 8] && !wallsOnBoard[wallPlacement - 0x40 - 8]){
+                takenWallPlaces[wallPlacement - 0x40] = false;
             }
-            if((wallPlacement & 7) > 0){
-                takenWallPlaces.insert(wallPlacement - 1);
+            if((wallPlacement & 7) < 7 && !wallsOnBoard[wallPlacement + 1 + 1]&& !wallsOnBoard[wallPlacement + 1 - 0x40]){
+                takenWallPlaces[wallPlacement + 1] = false;
+            }
+            if((wallPlacement & 7&& !wallsOnBoard[wallPlacement - 1 - 1]&& !wallsOnBoard[wallPlacement - 1 - 0x40]) > 0){
+                takenWallPlaces[wallPlacement - 1] = false;
             }
         }
 
         if (!isHorizontal){
-            takenWallPlaces.insert(wallPlacement + 0x40);
-            if((wallPlacement & 56) < 7){
-                takenWallPlaces.insert(wallPlacement + 8);
+            if(!wallsOnBoard[wallPlacement + 0x40 + 1] && !wallsOnBoard[wallPlacement + 0x40 - 1]){
+                takenWallPlaces[wallPlacement + 0x40] = false;
             }
-            if((wallPlacement & 56) > 0){
-                takenWallPlaces.insert(wallPlacement - 8);
+            if((wallPlacement & 56) >> 3 < 7 && !wallsOnBoard[wallPlacement + 8 + 8] && !wallsOnBoard[wallPlacement + 8 + 0x40]){
+                takenWallPlaces[wallPlacement + 8] = false;
+            }
+            if((wallPlacement & 56) >> 3 > 0 && !wallsOnBoard[wallPlacement - 8 - 8] && !wallsOnBoard[wallPlacement - 8 + 0x40]){
+                takenWallPlaces[wallPlacement - 8] = false;
+            }
+        }
+    }
+    
+
+    void takeWallPlaces(uint8_t wallPlacement){
+        takenWallPlaces[wallPlacement] = true;
+        bool isHorizontal = wallPlacement & 0x40;
+
+        if (isHorizontal){
+            takenWallPlaces[wallPlacement - 0x40] = true;
+            if((wallPlacement & 7) < 7){
+                takenWallPlaces[wallPlacement + 1] = true;
+            }
+            if((wallPlacement & 7) > 0){
+                takenWallPlaces[wallPlacement - 1] = true;
+            }
+        }
+
+        if (!isHorizontal){
+            takenWallPlaces[wallPlacement + 0x40] = true;
+            if((wallPlacement & 56) >> 3 < 7){  // fixed logic (added >> 3)
+                takenWallPlaces[wallPlacement + 8] = true;
+            }
+            if((wallPlacement & 56) >> 3 > 0){  // fixed logic (added >> 3)
+                takenWallPlaces[wallPlacement - 8] = true;
             }
         }
     }
@@ -185,7 +230,7 @@ class Board
 
             player ? whiteWalls-- : blackWalls--;
 
-            wallsOnBoard.insert(wallPlacement);
+            wallsOnBoard[wallPlacement] = true;
             takeWallPlaces(wallPlacement);
             addBlockades(wallPlacement);
             return;
@@ -200,6 +245,39 @@ class Board
         if (!player) {
             (move & 8) ? blackPawn += (move & 48) : blackPawn -= (move & 48);
             (move & 4) ? blackPawn += (move & 3) : blackPawn -= (move & 3);
+            return;
+        }
+    }
+    
+
+    /**
+     * Undo last move
+     * 
+     * @param move Last move   ASSUMPTION: move was the last move
+     * @param player true: white, false: black
+     * @return void
+     */
+    void undoMove(uint8_t move, bool player){
+        if (move >> 7){
+            uint8_t wallPlacement = move & 0x7f;
+
+            player ? whiteWalls++ : blackWalls++;
+
+            wallsOnBoard[wallPlacement] = false;
+            giveWallPlaces(wallPlacement);
+            removeBlockades(wallPlacement);
+            return;
+        }
+
+        if (player) {
+            (move & 8) ? whitePawn -= (move & 48) : whitePawn += (move & 48);
+            (move & 4) ? whitePawn -= (move & 3) : whitePawn += (move & 3);
+            return;
+        }
+
+        if (!player) {
+            (move & 8) ? blackPawn -= (move & 48) : blackPawn += (move & 48);
+            (move & 4) ? blackPawn -= (move & 3) : blackPawn += (move & 3);
             return;
         }
     }
@@ -311,29 +389,15 @@ class Board
 
         // generates wall placements
         for(uint8_t wallPlacement = 0; wallPlacement < 0x80; wallPlacement++){
-            if (takenWallPlaces.find(wallPlacement) != takenWallPlaces.end()){
+            if (takenWallPlaces[wallPlacement]){
                 continue;
             }
 
-            pair<uint8_t, uint8_t> blockade1, blockade2;
-
-            bool isHorizontal = wallPlacement & 0x40;
-            uint8_t i = (wallPlacement & 56) >> 3;
-            uint8_t j = wallPlacement & 7;
-
-            if(isHorizontal){
-                blockade1 = {16 * i + j, 16 * (i + 1) + j};
-                blockade2 = {16 * i + j + 1, 16 * (i + 1) + (j + 1)};
-            }
-
-            if(!isHorizontal){
-                blockade1 = {16 * i + j, 16 * i + (j + 1)};
-                blockade2 = {16 * i + j + 1, 16 * (i + 1) + (j + 1)};
-            }
-
-            if(bfs(whitePawn, true, blockade1, blockade2) && bfs(blackPawn, false, blockade1, blockade2)){
+            addBlockades(wallPlacement);
+            if(bfs(whitePawn, true) && bfs(blackPawn, false)){
                 possibleMoves.push_back(128 + wallPlacement);
             }
+            removeBlockades(wallPlacement);
         }
 
         return possibleMoves;
@@ -415,5 +479,18 @@ class Board
         moveString.append(")");
 
         return moveString;
+    }
+
+
+    bool operator==(const Board& other){
+        bool whitePawn = this->whitePawn == other.whitePawn;
+        bool blackPawn = this->blackPawn == other.blackPawn;
+        bool whiteWalls = this->whiteWalls == other.whiteWalls;
+        bool blackWalls =  this->blackWalls == other.blackWalls;
+        bool wallsOnBoard = equal(begin(this->wallsOnBoard), end(this->wallsOnBoard), begin(other.wallsOnBoard));
+        bool takenWallPlaces = equal(begin(this->takenWallPlaces), end(this->takenWallPlaces), begin(other.takenWallPlaces));
+        bool walledOffCells = this->walledOffCells == other.walledOffCells;
+        bool winner = this->winner == other.winner;
+        return whitePawn && blackPawn && whiteWalls && blackWalls && wallsOnBoard && takenWallPlaces && walledOffCells && winner;
     }
 };

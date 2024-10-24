@@ -3,7 +3,7 @@
 
 int GetMeaningOfLife() {return 42;}
 
-TEST(QuoridorBoard, TestMoves) {
+TEST(QuoridorBoard, TestMoveExecution) {
     Board game = Board();
     ASSERT_FALSE(game.movePawn(-1, 0, true)) << "Illegal move, pawn moved outside of board #1";
     ASSERT_TRUE(game.placeWall(7, 4, true, true)) << "Legal wall placement not accepted #1";
@@ -57,4 +57,18 @@ TEST(QuoridorBoard, TestMoves) {
     
     ASSERT_FALSE(game.movePawn(-1, 0, false)) << "Illegal pawn move, cell taken #20";
     ASSERT_TRUE(game.movePawn(-2, 0, false)) << "Legal pawn move not accepted, hop down #20";
+}
+
+TEST(QuoridorBoard, TestUndoMove) {
+    Board game = Board(), game1 = Board();
+    uint8_t moves[] = {252, 5, 189, 1, 24, 1, 24, 16, 24, 16, 24, 16, 24, 6, 163, 25, 40, 29, 21, 32};
+
+    for(int i = 0; i < 20; i++){
+        uint8_t move = moves[i];
+        game.executeMove(move, i%2 == 0);
+        game.undoMove(move, i%2 == 0);
+        EXPECT_TRUE(game == game1) << game.translateMove(move) << ": missmatch after undo #"<< i <<"\n";
+        game.executeMove(move, i%2 == 0);
+        game1.executeMove(move, i%2 == 0);
+    }
 }
