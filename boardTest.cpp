@@ -55,6 +55,6 @@ TEST(QuoridorBoard, TestMoves) {
     ASSERT_FALSE(game.movePawn(0, 2, true)) << "Illegal pawn move, hop over wall #19";
     ASSERT_TRUE(game.movePawn(-1, 1, true)) << "Legal pawn move not accepted, hop right-down #19";
     
-    ASSERT_FALSE(game.movePawn(-1, 0, true)) << "Illegal pawn move, cell taken #20";
-    ASSERT_TRUE(game.movePawn(-2, 0, true)) << "Legal pawn move not accepted, hop down #20";
+    ASSERT_FALSE(game.movePawn(-1, 0, false)) << "Illegal pawn move, cell taken #20";
+    ASSERT_TRUE(game.movePawn(-2, 0, false)) << "Legal pawn move not accepted, hop down #20";
 }
