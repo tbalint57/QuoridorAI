@@ -8,7 +8,19 @@
 
 using namespace std;
 
-uint16_t link(uint8_t a, uint8_t b){
+        // Pawn move representation
+        // +--------+--------+--------+--------+--------+--------+--------+--------+
+        // |    0   |    0   |   verticalMov   |vertPos | horPos |  horizontalMov  |
+        // +--------+--------+--------+--------+--------+--------+--------+--------+
+
+        // Wall move representation
+        // +--------+--------+--------+--------+--------+--------+--------+--------+
+        // |    1   |  isHor |             i            |             j            |
+        // +--------+--------+--------+--------+--------+--------+--------+--------+
+
+
+
+uint16_t makePair(uint8_t a, uint8_t b){
     uint8_t n = min(a, b);
     uint8_t m = max(a, b);
     uint16_t pair = n;
@@ -17,7 +29,6 @@ uint16_t link(uint8_t a, uint8_t b){
     return pair;
 }
 
-const uint8_t xf = 0xf;
 
 class Board
 {
@@ -42,13 +53,13 @@ class Board
         uint8_t j = wallPlacement & 7;
 
         if(isHorizontal){
-            walledOffCells.insert(link(16 * i + j, 16 * (i + 1) + j));
-            walledOffCells.insert(link(16 * i + j + 1, 16 * (i + 1) + (j + 1)));
+            walledOffCells.insert(makePair(16 * i + j, 16 * (i + 1) + j));
+            walledOffCells.insert(makePair(16 * i + j + 1, 16 * (i + 1) + (j + 1)));
         }
 
         if(!isHorizontal){
-            walledOffCells.insert(link(16 * i + j, 16 * i + (j + 1)));
-            walledOffCells.insert(link(16 * (i + 1) + j, 16 * (i + 1) + (j + 1)));
+            walledOffCells.insert(makePair(16 * i + j, 16 * i + (j + 1)));
+            walledOffCells.insert(makePair(16 * (i + 1) + j, 16 * (i + 1) + (j + 1)));
         }
     } 
 
@@ -96,24 +107,36 @@ class Board
 
         return foundRoute;
     }
+
+
+    bool checkMoveValidity(uint8_t move, bool player){
+        vector<uint8_t> possibleMoves = generatePossibleMoves(player);
+
+        for (uint8_t possibleMove : possibleMoves){
+            if (move == possibleMove){
+                return true;
+            }
+        }
+        return false;
+    }
     
 
     vector<uint8_t> getNeighbours(uint8_t cell){
         vector<uint8_t> neighbours = {};
 
-        if((cell & 0xf) != 8 && walledOffCells.find(link(cell, cell + 1)) == walledOffCells.end()){
+        if((cell & 0xf) != 8 && walledOffCells.find(makePair(cell, cell + 1)) == walledOffCells.end()){
             neighbours.push_back(cell + 1);
         }
 
-        if((cell & 0xf) != 0 && walledOffCells.find(link(cell, cell - 1)) == walledOffCells.end()){
+        if((cell & 0xf) != 0 && walledOffCells.find(makePair(cell, cell - 1)) == walledOffCells.end()){
             neighbours.push_back(cell - 1);
         }
 
-        if(((cell & 0xf0) >> 4) != 8 && walledOffCells.find(link(cell, cell + 16)) == walledOffCells.end()){
+        if(((cell & 0xf0) >> 4) != 8 && walledOffCells.find(makePair(cell, cell + 16)) == walledOffCells.end()){
             neighbours.push_back(cell + 16);
         }
 
-        if(((cell & 0xf0) >> 4) != 0 && walledOffCells.find(link(cell, cell - 16)) == walledOffCells.end()){
+        if(((cell & 0xf0) >> 4) != 0 && walledOffCells.find(makePair(cell, cell - 16)) == walledOffCells.end()){
             neighbours.push_back(cell - 16);
         }
 
@@ -182,6 +205,12 @@ class Board
     }
 
 
+    /**
+     * Generate possible move for given player
+     * 
+     * @param player true: white, false: black
+     * @return possible moves in a vector
+     */
     vector<uint8_t> generatePossibleMoves(bool player){
         vector<uint8_t> possibleMoves = {};
         
@@ -203,17 +232,17 @@ class Board
             }
 
             if (i > iPlayer) {
-                if(i < 8 && walledOffCells.find(link(neighbour, neighbour + 16)) == walledOffCells.end()){
+                if(i < 8 && walledOffCells.find(makePair(neighbour, neighbour + 16)) == walledOffCells.end()){
                     // hop up
                     possibleMoves.push_back(40);
                     continue;
                 }
                     
-                if (j > 0 && walledOffCells.find(link(neighbour, neighbour - 1)) == walledOffCells.end()){
+                if (j > 0 && walledOffCells.find(makePair(neighbour, neighbour - 1)) == walledOffCells.end()){
                     // hop up left
                     possibleMoves.push_back(25);
                 }
-                if (j < 8 && walledOffCells.find(link(neighbour, neighbour + 1)) == walledOffCells.end()){
+                if (j < 8 && walledOffCells.find(makePair(neighbour, neighbour + 1)) == walledOffCells.end()){
                     // hop up right
                     possibleMoves.push_back(29);
                 }
@@ -221,17 +250,17 @@ class Board
             }
 
             if (i < iPlayer) {
-                if(i > 0 && walledOffCells.find(link(neighbour, neighbour - 16)) == walledOffCells.end()){
+                if(i > 0 && walledOffCells.find(makePair(neighbour, neighbour - 16)) == walledOffCells.end()){
                     // hop down
                     possibleMoves.push_back(32);
                     continue;
                 }
                     
-                if (j > 0 && walledOffCells.find(link(neighbour, neighbour - 1)) == walledOffCells.end()){
+                if (j > 0 && walledOffCells.find(makePair(neighbour, neighbour - 1)) == walledOffCells.end()){
                     // hop down left
                     possibleMoves.push_back(17);
                 }
-                if (j < 8 && walledOffCells.find(link(neighbour, neighbour + 1)) == walledOffCells.end()){
+                if (j < 8 && walledOffCells.find(makePair(neighbour, neighbour + 1)) == walledOffCells.end()){
                     // hop down right
                     possibleMoves.push_back(21);
                 }
@@ -239,17 +268,17 @@ class Board
             }
 
             if (j > jPlayer) {
-                if(j < 8 && walledOffCells.find(link(neighbour, neighbour + 1)) == walledOffCells.end()){
+                if(j < 8 && walledOffCells.find(makePair(neighbour, neighbour + 1)) == walledOffCells.end()){
                     // hop right
                     possibleMoves.push_back(6);
                     continue;
                 }
                     
-                if (i > 0 && walledOffCells.find(link(neighbour, neighbour - 16)) == walledOffCells.end()){
+                if (i > 0 && walledOffCells.find(makePair(neighbour, neighbour - 16)) == walledOffCells.end()){
                     // hop right down
                     possibleMoves.push_back(21);
                 }
-                if (i < 8 && walledOffCells.find(link(neighbour, neighbour + 16)) == walledOffCells.end()){
+                if (i < 8 && walledOffCells.find(makePair(neighbour, neighbour + 16)) == walledOffCells.end()){
                     // hop right up
                     possibleMoves.push_back(29);
                 }
@@ -257,17 +286,17 @@ class Board
             }
 
             if (j < jPlayer) {
-                if(j > 0 && walledOffCells.find(link(neighbour, neighbour - 1)) == walledOffCells.end()){
+                if(j > 0 && walledOffCells.find(makePair(neighbour, neighbour - 1)) == walledOffCells.end()){
                     // hop left
                     possibleMoves.push_back(2);
                     continue;
                 }
                 
-                if (i > 0 && walledOffCells.find(link(neighbour, neighbour - 16)) == walledOffCells.end()){
+                if (i > 0 && walledOffCells.find(makePair(neighbour, neighbour - 16)) == walledOffCells.end()){
                     // hop left down
                     possibleMoves.push_back(17);
                 }
-                if (i < 8 && walledOffCells.find(link(neighbour, neighbour + 16)) == walledOffCells.end()){
+                if (i < 8 && walledOffCells.find(makePair(neighbour, neighbour + 16)) == walledOffCells.end()){
                     // hop left up
                     possibleMoves.push_back(25);
                 }
@@ -311,12 +340,26 @@ class Board
     }
 
 
+    /**
+     * Evaluate position
+     * 
+     * @return evaluation value
+     */
     float evaluate(){
         // Implement when necessary
         return -1;
     }
 
 
+    /**
+     * Place a wall if move is valid
+     * 
+     * @param i vertical coordinate
+     * @param j horizontal coordinate
+     * @param horizontal true: wall direction is horizontal, false: wall direction vertical
+     * @param player true: white, false: black
+     * @return true: wall placement is valid and executed, false: invalid wall placement - move not executed
+     */
     bool placeWall(uint8_t i, uint8_t j, bool horizontal, bool player){
         uint8_t move = 128 + (horizontal ? 64 : 0) + (i << 3) + j;
         if (checkMoveValidity(move, player)){
@@ -327,8 +370,16 @@ class Board
     }
     
 
-    bool movePawn(int up, int right, bool player){
-        uint8_t move = (((uint8_t) abs(up)) << 4) + ((uint8_t) abs(right)) + (up > 0 ? 8 : 0) + (right > 0 ? 4 : 0);
+    /**
+     * Move pawn if move is valid
+     * 
+     * @param verticalMovement vertical movement
+     * @param horizontalMovement horizontal movement
+     * @param player true: white, false: black
+     * @return true: pawn movement is valid and executed, false: invalid pawn movement - move not executed
+     */
+    bool movePawn(int verticalMovement, int horizontalMovement, bool player){
+        uint8_t move = (((uint8_t) abs(verticalMovement)) << 4) + ((uint8_t) abs(horizontalMovement)) + (verticalMovement > 0 ? 8 : 0) + (horizontalMovement > 0 ? 4 : 0);
         if (checkMoveValidity(move, player)){
             executeMove(move, player);
             return true;
@@ -337,20 +388,12 @@ class Board
     }
 
 
-    bool checkMoveValidity(uint8_t move, bool player){
-        vector<uint8_t> possibleMoves = generatePossibleMoves(player);
-
-        for (uint8_t possibleMove : possibleMoves){
-            if (move == possibleMove){
-                return true;
-            }
-        }
-
-
-        return false;
-    }
-
-
+    /**
+     * Translate move into human readable form
+     * 
+     * @param move move encoded in a byte
+     * @return move described in a string in the forms: Pawn(vert,hor) Wall(i-j) Wall(i|j)
+     */
     static string translateMove(uint8_t move){
         string moveString = "";
         if(move >> 7){
