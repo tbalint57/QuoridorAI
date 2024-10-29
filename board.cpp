@@ -449,8 +449,43 @@ class Board
      * @return evaluation value
      */
     float evaluate(){
-        // Implement when necessary
-        return -1;
+        float whitePathLength = (float) whitePath.size();
+        float blackPathLength = (float) blackPath.size();
+
+        float whiteWallCount = (float) whiteWalls;
+        float blackWallCount = (float) blackWalls;
+
+        float numberOfWallsAheadWhite = 0.0f;
+        int iWhite = (whitePawn & 0xf0) >> 4;
+        for(int i = iWhite; i < 8; i++){
+            for(int j = 0; j < 8; j++){
+                if(wallsOnBoard[8 * i + j] || wallsOnBoard[64 + 8 * i + j]){
+                    numberOfWallsAheadWhite++;
+                }
+            }
+        }
+        float numberOfWallsAheadBlack = 0.0f;
+        int iBlack = (whitePawn & 0xf0) >> 4;
+        for(int i = 0; i < iBlack; i++){
+            for(int j = 0; j < 8; j++){
+                if(wallsOnBoard[8 * i + j] || wallsOnBoard[64 + 8 * i + j]){
+                    numberOfWallsAheadBlack++;
+                }
+            }
+        }
+
+        float numberOfWhiteNeighbours = (float) getNeighbours(whitePawn).size();
+        float numberOfBlackNeighbours = (float) getNeighbours(blackPawn).size();
+
+        float heuristics[8] = {whitePathLength, blackPathLength, whiteWallCount, blackWallCount, numberOfWallsAheadWhite, numberOfWallsAheadBlack, numberOfWhiteNeighbours, numberOfBlackNeighbours};
+        float weights[8] = {1.0f, -1.0f, 1.5f, -1.5f, -0.4f, 0.4f, 0.2f, -0.2f};
+
+        float value = 0.0f;
+        for(int i = 0; i < 8; i++){
+            value += weights[i] * heuristics[i];
+        }
+
+        return value;
     }
 
 
