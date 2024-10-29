@@ -6,6 +6,11 @@
 #include <algorithm>
 #include <string>
 
+#define RIGHT 0
+#define DOWN 256
+#define LEFT 512
+#define UP 768
+
 using namespace std;
 
         // Pawn move representation
@@ -17,18 +22,6 @@ using namespace std;
         // +--------+--------+--------+--------+--------+--------+--------+--------+
         // |    1   |  isHor |             i            |             j            |
         // +--------+--------+--------+--------+--------+--------+--------+--------+
-
-
-
-uint16_t makePair(uint8_t a, uint8_t b){
-    uint8_t n = min(a, b);
-    uint8_t m = max(a, b);
-    uint16_t pair = n;
-    pair <<= 8;
-    pair += m;
-    return pair;
-}
-
 
 class Board
 {
@@ -42,7 +35,7 @@ class Board
 
     bool wallsOnBoard[128] = {false};
     bool takenWallPlaces[128] = {false};
-    unordered_set<uint16_t> walledOffCells;
+    bool walledOffCells[904] = {false};
 
     char winner = 0;
     
@@ -53,13 +46,17 @@ class Board
         uint8_t j = wallPlacement & 7;
 
         if(isHorizontal){
-            walledOffCells.insert(makePair(16 * i + j, 16 * (i + 1) + j));
-            walledOffCells.insert(makePair(16 * i + j + 1, 16 * (i + 1) + (j + 1)));
+            walledOffCells[16 * i + j + UP] = true;
+            walledOffCells[16 * (i + 1) + j + DOWN] = true;
+            walledOffCells[16 * i + j + 1 + UP] = true;
+            walledOffCells[16 * (i + 1) + (j + 1) + DOWN] = true;
         }
 
         if(!isHorizontal){
-            walledOffCells.insert(makePair(16 * i + j, 16 * i + (j + 1)));
-            walledOffCells.insert(makePair(16 * (i + 1) + j, 16 * (i + 1) + (j + 1)));
+            walledOffCells[16 * i + j + RIGHT] = true;
+            walledOffCells[16 * i + j + 1 + LEFT] = true;
+            walledOffCells[16 * (i + 1) + j + RIGHT] = true;
+            walledOffCells[16 * (i + 1) + (j + 1) + LEFT] = true;
         }
     } 
     
@@ -70,13 +67,17 @@ class Board
         uint8_t j = wallPlacement & 7;
 
         if(isHorizontal){
-            walledOffCells.erase(makePair(16 * i + j, 16 * (i + 1) + j));
-            walledOffCells.erase(makePair(16 * i + j + 1, 16 * (i + 1) + (j + 1)));
+            walledOffCells[16 * i + j + UP] = false;
+            walledOffCells[16 * (i + 1) + j + DOWN] = false;
+            walledOffCells[16 * i + j + 1 + UP] = false;
+            walledOffCells[16 * (i + 1) + (j + 1) + DOWN] = false;
         }
 
         if(!isHorizontal){
-            walledOffCells.erase(makePair(16 * i + j, 16 * i + (j + 1)));
-            walledOffCells.erase(makePair(16 * (i + 1) + j, 16 * (i + 1) + (j + 1)));
+            walledOffCells[16 * i + j + RIGHT] = false;
+            walledOffCells[16 * i + j + 1 + LEFT] = false;
+            walledOffCells[16 * (i + 1) + j + RIGHT] = false;
+            walledOffCells[16 * (i + 1) + (j + 1) + LEFT] = false;
         }
     } 
 
@@ -139,19 +140,19 @@ class Board
     vector<uint8_t> getNeighbours(uint8_t cell){
         vector<uint8_t> neighbours = {};
 
-        if((cell & 0xf) != 8 && walledOffCells.find(makePair(cell, cell + 1)) == walledOffCells.end()){
+        if((cell & 0xf) != 8 && !walledOffCells[cell + RIGHT]){
             neighbours.push_back(cell + 1);
         }
 
-        if((cell & 0xf) != 0 && walledOffCells.find(makePair(cell, cell - 1)) == walledOffCells.end()){
+        if((cell & 0xf) != 0 && !walledOffCells[cell + LEFT]){
             neighbours.push_back(cell - 1);
         }
 
-        if(((cell & 0xf0) >> 4) != 8 && walledOffCells.find(makePair(cell, cell + 16)) == walledOffCells.end()){
+        if(((cell & 0xf0) >> 4) != 8 && !walledOffCells[cell + UP]){
             neighbours.push_back(cell + 16);
         }
 
-        if(((cell & 0xf0) >> 4) != 0 && walledOffCells.find(makePair(cell, cell - 16)) == walledOffCells.end()){
+        if(((cell & 0xf0) >> 4) != 0 && !walledOffCells[cell + DOWN]){
             neighbours.push_back(cell - 16);
         }
 
@@ -310,17 +311,17 @@ class Board
             }
 
             if (i > iPlayer) {
-                if(i < 8 && walledOffCells.find(makePair(neighbour, neighbour + 16)) == walledOffCells.end()){
+                if(i < 8 && !walledOffCells[neighbour + UP]){
                     // hop up
                     possibleMoves.push_back(40);
                     continue;
                 }
                     
-                if (j > 0 && walledOffCells.find(makePair(neighbour, neighbour - 1)) == walledOffCells.end()){
+                if (j > 0 && !walledOffCells[neighbour + LEFT]){
                     // hop up left
                     possibleMoves.push_back(25);
                 }
-                if (j < 8 && walledOffCells.find(makePair(neighbour, neighbour + 1)) == walledOffCells.end()){
+                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
                     // hop up right
                     possibleMoves.push_back(29);
                 }
@@ -328,17 +329,17 @@ class Board
             }
 
             if (i < iPlayer) {
-                if(i > 0 && walledOffCells.find(makePair(neighbour, neighbour - 16)) == walledOffCells.end()){
+                if(i > 0 && !walledOffCells[neighbour + DOWN]){
                     // hop down
                     possibleMoves.push_back(32);
                     continue;
                 }
                     
-                if (j > 0 && walledOffCells.find(makePair(neighbour, neighbour - 1)) == walledOffCells.end()){
+                if (j > 0 && !walledOffCells[neighbour + LEFT]){
                     // hop down left
                     possibleMoves.push_back(17);
                 }
-                if (j < 8 && walledOffCells.find(makePair(neighbour, neighbour + 1)) == walledOffCells.end()){
+                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
                     // hop down right
                     possibleMoves.push_back(21);
                 }
@@ -346,17 +347,17 @@ class Board
             }
 
             if (j > jPlayer) {
-                if(j < 8 && walledOffCells.find(makePair(neighbour, neighbour + 1)) == walledOffCells.end()){
+                if(j < 8 && !walledOffCells[neighbour + RIGHT]){
                     // hop right
                     possibleMoves.push_back(6);
                     continue;
                 }
                     
-                if (i > 0 && walledOffCells.find(makePair(neighbour, neighbour - 16)) == walledOffCells.end()){
+                if (i > 0 && !walledOffCells[neighbour + DOWN]){
                     // hop right down
                     possibleMoves.push_back(21);
                 }
-                if (i < 8 && walledOffCells.find(makePair(neighbour, neighbour + 16)) == walledOffCells.end()){
+                if (i < 8 && !walledOffCells[neighbour + UP]){
                     // hop right up
                     possibleMoves.push_back(29);
                 }
@@ -364,17 +365,17 @@ class Board
             }
 
             if (j < jPlayer) {
-                if(j > 0 && walledOffCells.find(makePair(neighbour, neighbour - 1)) == walledOffCells.end()){
+                if(j > 0 && !walledOffCells[neighbour + LEFT]){
                     // hop left
                     possibleMoves.push_back(2);
                     continue;
                 }
                 
-                if (i > 0 && walledOffCells.find(makePair(neighbour, neighbour - 16)) == walledOffCells.end()){
+                if (i > 0 && !walledOffCells[neighbour + DOWN]){
                     // hop left down
                     possibleMoves.push_back(17);
                 }
-                if (i < 8 && walledOffCells.find(makePair(neighbour, neighbour + 16)) == walledOffCells.end()){
+                if (i < 8 && !walledOffCells[neighbour + UP]){
                     // hop left up
                     possibleMoves.push_back(25);
                 }
@@ -489,7 +490,7 @@ class Board
         bool blackWalls =  this->blackWalls == other.blackWalls;
         bool wallsOnBoard = equal(begin(this->wallsOnBoard), end(this->wallsOnBoard), begin(other.wallsOnBoard));
         bool takenWallPlaces = equal(begin(this->takenWallPlaces), end(this->takenWallPlaces), begin(other.takenWallPlaces));
-        bool walledOffCells = this->walledOffCells == other.walledOffCells;
+        bool walledOffCells = equal(begin(this->walledOffCells), end(this->walledOffCells), begin(other.walledOffCells));
         bool winner = this->winner == other.winner;
         return whitePawn && blackPawn && whiteWalls && blackWalls && wallsOnBoard && takenWallPlaces && walledOffCells && winner;
     }
