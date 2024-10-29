@@ -37,6 +37,9 @@ class Board
     bool takenWallPlaces[128] = {false};
     bool walledOffCells[904] = {false};
 
+    vector<uint8_t> whitePath = {20, 36, 52, 68, 84, 100, 116, 132};
+    vector<uint8_t> blackPath = {116, 100, 84, 68, 52, 36, 20, 4};
+
     char winner = 0;
     
 
@@ -82,7 +85,8 @@ class Board
     } 
 
 
-    bool bfs(uint8_t startCell, bool player){
+    bool bfs(bool player, bool changeRoute){
+        uint8_t startCell = player ? whitePawn : blackPawn;
         queue<uint8_t> todo = {};
         uint8_t parent[137] = {0};
         bool seen[137] = {false};
@@ -112,15 +116,19 @@ class Board
                 }
             }
         }
+        if (!changeRoute){
+            return foundRoute;
+        }
 
-        // // finish logic
-        // vector<uint8_t> newPath = {};
-        // while (curCell != startCell){
-        //     cout << (int) curCell << "\n";
-        //     newPath.push_back(curCell);
-        //     curCell = parent[curCell];
-        // }
+        // finish logic
+        vector<uint8_t> newPath = {};
+        while (curCell != startCell){
+            newPath.push_back(curCell);
+            curCell = parent[curCell];
+        }
+        reverse(newPath.begin(), newPath.end());
 
+        player ? whitePath = newPath : blackPath = newPath;
         return foundRoute;
     }
 
@@ -234,18 +242,44 @@ class Board
             wallsOnBoard[wallPlacement] = true;
             takeWallPlaces(wallPlacement);
             addBlockades(wallPlacement);
+            bfs(player, true);
+            bfs(!player, true);
             return;
         }
 
         if (player) {
             (move & 8) ? whitePawn += (move & 48) : whitePawn -= (move & 48);
             (move & 4) ? whitePawn += (move & 3) : whitePawn -= (move & 3);
+
+            if (whitePawn == whitePath[0]){
+                whitePath.erase(whitePath.begin());
+                return;
+            }
+
+            if (whitePawn == whitePath[1]){
+                whitePath.erase(whitePath.begin(), whitePath.begin() + 1);
+                return;
+            }
+
+            bfs(player, true);
             return;
         }
 
         if (!player) {
             (move & 8) ? blackPawn += (move & 48) : blackPawn -= (move & 48);
             (move & 4) ? blackPawn += (move & 3) : blackPawn -= (move & 3);
+
+            if (blackPawn == blackPath[0]){
+                blackPath.erase(blackPath.begin());
+                return;
+            }
+
+            if (blackPawn == blackPath[1]){
+                blackPath.erase(blackPath.begin(), blackPath.begin() + 1);
+                return;
+            }
+
+            bfs(player, true);
             return;
         }
     }
@@ -267,18 +301,22 @@ class Board
             wallsOnBoard[wallPlacement] = false;
             giveWallPlaces(wallPlacement);
             removeBlockades(wallPlacement);
+            bfs(player, true);
+            bfs(!player, true);
             return;
         }
 
         if (player) {
             (move & 8) ? whitePawn -= (move & 48) : whitePawn += (move & 48);
             (move & 4) ? whitePawn -= (move & 3) : whitePawn += (move & 3);
+            bfs(player, true);
             return;
         }
 
         if (!player) {
             (move & 8) ? blackPawn -= (move & 48) : blackPawn += (move & 48);
             (move & 4) ? blackPawn -= (move & 3) : blackPawn += (move & 3);
+            bfs(player, true);
             return;
         }
     }
@@ -395,7 +433,7 @@ class Board
             }
 
             addBlockades(wallPlacement);
-            if(bfs(whitePawn, true) && bfs(blackPawn, false)){
+            if(bfs(true, false) && bfs(false, false)){
                 possibleMoves.push_back(128 + wallPlacement);
             }
             removeBlockades(wallPlacement);
@@ -491,7 +529,9 @@ class Board
         bool wallsOnBoard = equal(begin(this->wallsOnBoard), end(this->wallsOnBoard), begin(other.wallsOnBoard));
         bool takenWallPlaces = equal(begin(this->takenWallPlaces), end(this->takenWallPlaces), begin(other.takenWallPlaces));
         bool walledOffCells = equal(begin(this->walledOffCells), end(this->walledOffCells), begin(other.walledOffCells));
+        bool whitePath = this->whitePath.size() == other.whitePath.size();
+        bool blackPath = this->blackPath.size() == other.blackPath.size();
         bool winner = this->winner == other.winner;
-        return whitePawn && blackPawn && whiteWalls && blackWalls && wallsOnBoard && takenWallPlaces && walledOffCells && winner;
+        return whitePawn && blackPawn && whiteWalls && blackWalls && wallsOnBoard && takenWallPlaces && walledOffCells && whitePath && blackPath && winner;
     }
 };
