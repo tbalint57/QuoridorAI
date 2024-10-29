@@ -25,7 +25,7 @@ using namespace std;
 
 class Board
 {
-    private:
+    public:
 
     uint8_t whitePawn = 4;
     uint8_t blackPawn = 132;
@@ -251,6 +251,10 @@ class Board
             (move & 8) ? whitePawn += (move & 48) : whitePawn -= (move & 48);
             (move & 4) ? whitePawn += (move & 3) : whitePawn -= (move & 3);
 
+            if(whitePawn > 127){
+                winner = 'w';
+            }
+
             if (whitePawn == whitePath[0]){
                 whitePath.erase(whitePath.begin());
                 return;
@@ -268,6 +272,11 @@ class Board
         if (!player) {
             (move & 8) ? blackPawn += (move & 48) : blackPawn -= (move & 48);
             (move & 4) ? blackPawn += (move & 3) : blackPawn -= (move & 3);
+
+            if(blackPawn < 9){
+                winner = 'b';
+                return;
+            }
 
             if (blackPawn == blackPath[0]){
                 blackPath.erase(blackPath.begin());
@@ -293,6 +302,7 @@ class Board
      * @return void
      */
     void undoMove(uint8_t move, bool player){
+        winner = 0;
         if (move >> 7){
             uint8_t wallPlacement = move & 0x7f;
 
@@ -330,6 +340,10 @@ class Board
      */
     vector<uint8_t> generatePossibleMoves(bool player){
         vector<uint8_t> possibleMoves = {};
+
+        if(winner != 0){
+            return possibleMoves;
+        }
         
         uint8_t iPlayer = ((player ? whitePawn : blackPawn) & 0xf0) >> 4;
         uint8_t jPlayer = (player ? whitePawn : blackPawn) & 0x0f; 
@@ -449,6 +463,14 @@ class Board
      * @return evaluation value
      */
     float evaluate(){
+        if(winner == 'w'){
+            return 1000.0f;
+        }
+
+        if(winner == 'b'){
+            return -1000.0f;
+        }
+
         float whitePathLength = (float) whitePath.size();
         float blackPathLength = (float) blackPath.size();
 
@@ -478,7 +500,7 @@ class Board
         float numberOfBlackNeighbours = (float) getNeighbours(blackPawn).size();
 
         float heuristics[8] = {whitePathLength, blackPathLength, whiteWallCount, blackWallCount, numberOfWallsAheadWhite, numberOfWallsAheadBlack, numberOfWhiteNeighbours, numberOfBlackNeighbours};
-        float weights[8] = {1.0f, -1.0f, 1.5f, -1.5f, -0.4f, 0.4f, 0.2f, -0.2f};
+        float weights[8] = {-1.0f, 1.0f, 0.5f, -0.5f, -0.2f, 0.2f, 0.1f, -0.1f};
 
         float value = 0.0f;
         for(int i = 0; i < 8; i++){
