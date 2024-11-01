@@ -617,4 +617,22 @@ class Board
             winner = 'b';
         }
     }
+    
+
+    Board(){
+        this->whitePawn = 4;
+        this->blackPawn = 132;
+
+        this->wallsOnBoard[128] = {false};
+        this->takenWallPlaces[128] = {false};
+        this->walledOffCells[904] = {false};
+
+        this->whitePath = {20, 36, 52, 68, 84, 100, 116, 132};
+        this->blackPath = {116, 100, 84, 68, 52, 36, 20, 4};
+
+        this->whiteWalls = 10;
+        this->blackWalls = 10;
+
+        char winner = 0;
+    }
 };

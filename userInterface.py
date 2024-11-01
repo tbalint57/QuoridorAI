@@ -1,5 +1,8 @@
 import pygame
 import sys
+from board import Board
+from cppInterface import getMove
+import time
 
 pygame.init()
 
@@ -38,9 +41,9 @@ def drawBoard(gameState):
 
             pygame.draw.rect(screen, CELL_COLOR, (x, y, CELL_SIZE, CELL_SIZE))
     
-    drawPawn(gameState["whitePawn"], WHITE_COLOR)
-    drawPawn(gameState["blackPawn"], BLACK_COLOR)
-    drawWalls(gameState)
+    drawPawn(gameState.whitePawn, WHITE_COLOR)
+    drawPawn(gameState.blackPawn, BLACK_COLOR)
+    drawWalls(gameState.wallsOnBoard)
 
 
 def drawPawn(position, color):
@@ -54,13 +57,13 @@ def drawPawn(position, color):
     pygame.draw.circle(screen, color, (center_x, center_y), CELL_SIZE // 3)
 
 
-def drawWalls(gameState):
-    for wall in gameState["walls"]:
-        drawWall(wall["position"], wall["isHorizontal"])
+def drawWalls(walls):
+    for wall in walls:
+        drawWall(wall)
 
 
-def drawWall(position, isHorizontal, color = WALL_COLOR):
-    row, col = position
+def drawWall(wall, color = WALL_COLOR):
+    isHorizontal, row, col = wall
     row = 8 - row
     x, y = cellToRealCoordinates(row, col)
 
@@ -68,6 +71,12 @@ def drawWall(position, isHorizontal, color = WALL_COLOR):
         pygame.draw.rect(screen, color, (x - SPACING, y - SPACING, 2 * CELL_SIZE + SPACING, SPACING))
     if not isHorizontal:
         pygame.draw.rect(screen, color, (x + CELL_SIZE, y - CELL_SIZE - SPACING, SPACING, 2 * CELL_SIZE + SPACING))
+
+
+game = Board()
+whiteTurn = True
+gameRecord = open("record.txt", "w")
+index = 2
 
 # Main game loop
 running = True
@@ -77,10 +86,19 @@ while running:
             running = False
     
     # Draw the board
-    drawBoard(initialGameState)
-    
+    drawBoard(game)
     # Update display
     pygame.display.flip()
+
+    move = getMove(game, whiteTurn)
+
+    game.executeMove(Board.translateMove(move), whiteTurn)
+    whiteTurn = not whiteTurn
+    gameRecord.write("#" + str(index // 2) + "\t" + str(move) + ":\t" + str(game.whitePawn) + "\t" + str(game.blackPawn) + "\n")
+    index += 1
+    time.sleep(1)
+
+    
 
 # Quit Pygame
 pygame.quit()

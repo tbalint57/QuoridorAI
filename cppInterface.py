@@ -1,6 +1,5 @@
 import ctypes
 from ctypes import *
-from board import Board
 
 lib = ctypes.CDLL('./interface.so') 
 
@@ -46,8 +45,3 @@ def getPossibleMoves(board, player):
     moves = [result[i] for i in range(outputLength.value)]
 
     return moves
-
-
-game = Board()
-print(game.whitePawn)
-print(getMove(game, True))

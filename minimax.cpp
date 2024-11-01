@@ -42,7 +42,7 @@ uint8_t calculateBestMove(Board* board, int depth, bool player){
     }
 
     if(player){
-        float maxValue = -1000.0f;
+        float maxValue = -2000.0f;
 
         for (uint8_t move : board->generatePossibleMoves(player)){
             board->executeMove(move, player);
@@ -56,7 +56,7 @@ uint8_t calculateBestMove(Board* board, int depth, bool player){
     }
 
     if(!player){
-        float minValue = 1000.0f;
+        float minValue = 2000.0f;
 
         for (uint8_t move : board->generatePossibleMoves(player)){
             board->executeMove(move, player);
