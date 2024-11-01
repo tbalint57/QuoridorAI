@@ -25,7 +25,7 @@ using namespace std;
 
 class Board
 {
-    public:
+    private:
 
     uint8_t whitePawn = 4;
     uint8_t blackPawn = 132;
@@ -590,5 +590,31 @@ class Board
         bool blackPath = this->blackPath.size() == other.blackPath.size();
         bool winner = this->winner == other.winner;
         return whitePawn && blackPawn && whiteWalls && blackWalls && wallsOnBoard && takenWallPlaces && walledOffCells && whitePath && blackPath && winner;
+    }
+
+
+    Board(pair<int, int> whitePawn, pair<int, int> blackPawn, vector<pair<bool, pair<int, int>>> walls, int whiteWalls, int blackWalls){
+        this->whitePawn = 16 * whitePawn.first + whitePawn.second;
+        this->blackPawn = 16 * blackPawn.first + blackPawn.second;
+
+        this->wallsOnBoard[128] = {false};
+        this->takenWallPlaces[128] = {false};
+        this->walledOffCells[904] = {false};
+        
+        for(int i = 0; i < walls.size(); i++){
+            uint8_t move = 128 + (walls[i].first ? 64 : 0) + 8 * walls[i].second.first + walls[i].second.second;
+            executeMove(move, true);
+        }
+
+        this->whiteWalls = whiteWalls;
+        this->blackWalls = blackWalls;
+
+        char winner = 0;
+        if (whitePawn.first == 8){
+            winner = 'w';
+        }
+        if (blackPawn.first == 0){
+            winner = 'b';
+        }
     }
 };

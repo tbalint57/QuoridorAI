@@ -4,3 +4,6 @@ out
 CMakeLists.txt
 main.cpp
 main.exe
+interface.so
+__pycache__
+test.py

@@ -30,6 +30,8 @@ float minimax(Board* board, int depth, bool player){
         }
         return minValue;
     }
+
+    return 0;
 }
 
 uint8_t calculateBestMove(Board* board, int depth, bool player){
