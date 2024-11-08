@@ -21,7 +21,7 @@ extern "C" {
     };
 
 
-    uint8_t getMove(Cell whitePawn, Cell blackPawn, Wall* walls, size_t length, int whiteWalls, int blackWalls, bool player){
+    uint8_t calculateBestMove(Cell whitePawn, Cell blackPawn, Wall* walls, size_t length, int whiteWalls, int blackWalls, bool player, int depth){
         vector<pair<bool, pair<int, int>>> wallsVector = {};
         for (size_t i = 0; i < length; i++){
             Wall wall = walls[i];
@@ -29,7 +29,7 @@ extern "C" {
         }
 
         Board game = Board({whitePawn.i, whitePawn.j}, {blackPawn.i, blackPawn.j}, wallsVector, whiteWalls, blackWalls);
-        return calculateBestMove(&game, 2, player);
+        return calculateBestMove(&game, depth, player);
     }
 
 

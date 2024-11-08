@@ -5,7 +5,7 @@
 
 using namespace std;
 
-float minimax(Board* board, int depth, bool player){
+float minimax(Board* board, int depth, bool player, float alpha, float beta){
 
     if (depth == 0){
         return board->evaluate();
@@ -15,8 +15,12 @@ float minimax(Board* board, int depth, bool player){
         float maxValue = -1000.0f;
         for (uint8_t move : board->generatePossibleMoves(player)){
             board->executeMove(move, player);
-            maxValue = max(maxValue, minimax(board, depth - 1, !player));
+            maxValue = max(maxValue, minimax(board, depth - 1, !player, alpha, beta));
+            if (maxValue > beta){
+                break;
+            }
             board->undoMove(move, player);
+            alpha = max(alpha, maxValue);
         }
         return maxValue;
     }
@@ -25,8 +29,12 @@ float minimax(Board* board, int depth, bool player){
         float minValue = 1000.0f;
         for (uint8_t move : board->generatePossibleMoves(player)){
             board->executeMove(move, player);
-            minValue = min(minValue, minimax(board, depth - 1, !player));
+            minValue = min(minValue, minimax(board, depth - 1, !player, alpha, beta));
+            if(minValue < alpha){
+                break;
+            }
             board->undoMove(move, player);
+            beta = min(beta, minValue);
         }
         return minValue;
     }
@@ -37,6 +45,9 @@ float minimax(Board* board, int depth, bool player){
 uint8_t calculateBestMove(Board* board, int depth, bool player){
     uint8_t bestMove;
 
+    float alpha = -2000.0f;
+    float beta = 2000.0f;
+
     if (depth == 0){
         return board->evaluate();
     }
@@ -46,12 +57,16 @@ uint8_t calculateBestMove(Board* board, int depth, bool player){
 
         for (uint8_t move : board->generatePossibleMoves(player)){
             board->executeMove(move, player);
-            float value = minimax(board, depth - 1, !player);
+            float value = minimax(board, depth - 1, !player, alpha, beta);
             if(value > maxValue){
                 bestMove = move;
                 maxValue = value;
             }
+            if (maxValue > beta){
+                break;
+            }
             board->undoMove(move, player);
+            alpha = max(alpha, maxValue);
         }
     }
 
@@ -60,12 +75,16 @@ uint8_t calculateBestMove(Board* board, int depth, bool player){
 
         for (uint8_t move : board->generatePossibleMoves(player)){
             board->executeMove(move, player);
-            float value = minimax(board, depth - 1, !player);
+            float value = minimax(board, depth - 1, !player, alpha, beta);
             if(value < minValue){
                 bestMove = move;
                 minValue = value;
             }
+            if(minValue < alpha){
+                break;
+            }
             board->undoMove(move, player);
+            beta = min(beta, minValue);
         }
     }
 

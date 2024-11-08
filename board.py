@@ -1,59 +1,51 @@
-from cppInterface import getPossibleMoves, getMove
+from game import Game
+from typing import Tuple
+import time
 
 class Board:
-    def __init__(self, whitePawn = (0, 4), blackPawn = (8, 4), whiteWalls = 10, blackWalls = 10, wallsOnBoard = []):
-        self.whitePawn = whitePawn
-        self.blackPawn = blackPawn
-        self.whiteWalls = whiteWalls
-        self.blackWalls = blackWalls
-        self.wallsOnBoard = wallsOnBoard
-
-
-    @staticmethod
-    def translateMove(moveChar):
-        def checkBit(k):
-            return (moveChar >> k) & 1 == 1
-
-        isWallPlacement = checkBit(7)
-
-        if isWallPlacement:
-            isHorizontal = checkBit(6)
-            i = (moveChar >> 3) & 7
-            j = moveChar & 7
-
-            return (isWallPlacement, i, j, isHorizontal)
+    def __init__(self, 
+                 isHorizontalPressed: bool = False, 
+                 isVerticalPressed: bool = False, 
+                 gameState: Game = Game(), 
+                 whiteTurn: bool = True, 
+                 moves: Tuple[Tuple[bool, Tuple[int, int], bool], bool] = []):
         
-        i = (moveChar >> 4) & 3
-        if not checkBit(3):
-            i = -i
-        
-        j = moveChar & 3
-        if not checkBit(2):
-            j = -j
+        self.isHorizontalPressed: bool = isHorizontalPressed
+        self.isVerticalPressed: bool = isVerticalPressed
+        self.gameState: Game = gameState
+        self.whiteTurn: bool = whiteTurn
+        self.moves: Tuple[Tuple[bool, Tuple[int, int], bool], bool] = moves
 
-        return (isWallPlacement, i, j, True)
-
-
-    def executeMove(self, move, isWhitePlayer):
-        isWallPlacement, i, j, isHorizontal = move
-        if isWallPlacement:
-            self.wallsOnBoard.append((isHorizontal, i, j))
-
-            if isWhitePlayer:
-                self.whiteWalls -= 1 
-            else:
-                self.blackWalls -= 1
-            
-            return 
-        
-        if isWhitePlayer:
-            self.whitePawn = (self.whitePawn[0] + i, self.whitePawn[1] + j)
-
-        else:
-            self.blackPawn = (self.blackPawn[0] + i, self.blackPawn[1] + j)
-
-
-    def generatePossibleMoves(self, player):
-        possibleMoveChars = getPossibleMoves(self, player)
-        return [self.translateMove(moveChar) for moveChar in possibleMoveChars]
     
+    def pressVertical(self):
+        self.isVerticalPressed = True
+        self.isHorizontalPressed = False
+
+
+    def pressHorizontal(self):
+        self.isHorizontalPressed = True
+        self.isVerticalPressed = False
+
+
+    def executeMove(self, move: Tuple[bool, Tuple[int, int], bool]):
+        self.gameState.executeMove(move, self.whiteTurn) 
+        self.moves.append((move, self.whiteTurn))
+        self.isHorizontalPressed = False
+        self.isVerticalPressed = False
+        self.whiteTurn = not self.whiteTurn
+
+
+    def getWallDirection(self):
+        wallDirection = None
+
+        if self.isHorizontalPressed:
+            wallDirection = "horizontal"
+
+        if self.isVerticalPressed:
+            wallDirection = "vertical"
+
+        return wallDirection
+
+
+    def undo(self):
+        pass
