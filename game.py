@@ -15,7 +15,7 @@ class Game:
         self.whiteWalls: int = whiteWalls
         self.blackWalls: int = blackWalls
         self.wallsOnBoard: list[Tuple[bool, int, int]] = wallsOnBoard
-        self.winner: str = ""
+        self.winner: str = winner
 
 
     @staticmethod
@@ -41,6 +41,35 @@ class Game:
             j = -j
 
         return (isWallPlacement, (i, j), None)
+    
+
+    @staticmethod
+    def compressMove(move: Tuple[bool, Tuple[int, int], bool]) -> int:
+        isWall, position, isHorizontal = move
+        i, j = position
+
+        moveChar = 0
+
+        if isWall:
+            moveChar += 128
+        
+            if isHorizontal:
+                moveChar += 64
+
+            moveChar += 8 * i
+            moveChar += j
+
+            return moveChar
+        
+        if i > 0:
+            moveChar += 8
+        
+        if j > 0:
+            moveChar += 4
+
+        moveChar += 16 * abs(i)
+        moveChar += abs(j)
+        return moveChar
 
 
     def executeMove(self, move: Tuple[bool, Tuple[int, int], bool], isWhitePlayer: bool) -> None:

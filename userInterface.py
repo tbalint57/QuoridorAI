@@ -132,59 +132,22 @@ def highlightPossibleMoves(gameState, player, wall = None):
     return possibleMoves
 
 
-def playAIvsAI():
-    board = Board()
-    whiteTurn = True
-    gameRecord = open("record.txt", "w")
-    index = 2  
+def getMoveAI(board):
+    moveChar = calculateBestMove(board.gameState, board.whiteTurn)
+    return Game.translateMove(moveChar)
 
-    # Main game loop
-    running = True
-    while running:
+
+def getMovePlayer(board):
+    while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-                # Quit Pygame
-                pygame.quit()
-                sys.exit()
-        
-        drawBoard(board.gameState)
-
-        pygame.display.flip()
-
-        move = calculateBestMove(board.gameState, whiteTurn)
-
-        board.gameState.executeMove(Game.translateMove(move), whiteTurn)
-        whiteTurn = not whiteTurn
-        gameRecord.write("#" + str(index // 2) + "\t" + str(move) + ":\t" + str(board.gameState.whitePawn) + "\t" + str(board.gameState.blackPawn) + "\n")
-        index += 1
-
-        running = board.gameState.winner == ""
-    
-    endOfGamePage(board.gameState.winner)
-
-
-def playPlayerVsPlayer():
-    board = Board()
-
-    horizontalWallButton = None
-    verticalWallButton = None
-
-    # Main game loop
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                # Quit Pygame
-                pygame.quit()
-                sys.exit()
+                print("quit called")
+                quit()
                 
         horizontalWallButton = None
         verticalWallButton = None
 
-
-        
         drawBoard(board.gameState)
         
         if (board.whiteTurn and board.gameState.whiteWalls > 0) or (not board.whiteTurn and board.gameState.blackWalls > 0):
@@ -195,27 +158,60 @@ def playPlayerVsPlayer():
 
         possibleMoves = highlightPossibleMoves(board.gameState, board.whiteTurn, board.getWallDirection())
         
-
-        if horizontalWallButton.clicked and not board.isHorizontalPressed:
+        if horizontalWallButton is not None and horizontalWallButton.clicked and not board.isHorizontalPressed:
             board.pressHorizontal()
             
-        elif verticalWallButton.clicked and not board.isVerticalPressed:
+        elif verticalWallButton is not None and verticalWallButton.clicked and not board.isVerticalPressed:
             board.pressVertical()
 
         for moveButton in possibleMoves:
             moveButton.draw(screen)
             if moveButton.clicked:
-                moveMade = True
-                board.executeMove(moveButton.move)
+                return moveButton.move
 
         pygame.display.flip()
 
+
+def play(moveFunctions):
+    time.sleep(1)
+    print("play")
+
+    if moveFunctions == None:
+        spectateGame()
+
+    board = Board()
+    board.reset()
+    gameRecord = open("record.txt", "w")
+    running = True
+
+    whiteMoveFunc, blackMoveFunc = moveFunctions
+
+    while running:
+        drawBoard(board.gameState)
+
+        if board.whiteTurn:
+            move = whiteMoveFunc(board)
+
+        else:
+            move = blackMoveFunc(board)
+
+        board.executeMove(move)
         running = board.gameState.winner == ""
+
+        gameRecord.write(Game.compressMove(move))
+        drawBoard(board.gameState)
+        pygame.display.flip()
     
     endOfGamePage(board.gameState.winner)
+        
+
+def spectateGame():
+    pass
 
 
 def homePage():
+    time.sleep(1)
+    print("homePage")
     time.sleep(0.5)
     font = pygame.font.Font(None, 74)
     text = font.render(f"Please choose the game mode!", True, (255, 255, 255))
@@ -231,21 +227,21 @@ def homePage():
         screen.blit(text, text_rect)
 
         buttons = []
-        buttons.append(spawnImageButton(images["buttonAIvAI"], (WIDTH // 2, HEIGHT // 3), playAIvsAI))
-        buttons.append(spawnImageButton(images["buttonAIvP"], (WIDTH // 2, HEIGHT // 3 + BUTTON_HEIGHT * 2), colourSelection))
-        buttons.append(spawnImageButton(images["buttonPvP"], (WIDTH // 2, HEIGHT // 3 + BUTTON_HEIGHT * 4), playPlayerVsPlayer))
-        buttons.append(spawnImageButton(images["buttonExit"], (WIDTH // 2, HEIGHT // 3 + BUTTON_HEIGHT * 6), quit))
+        buttons.append(spawnImageButton(images["buttonAIvAI"], (WIDTH // 2, HEIGHT // 3), (getMoveAI, getMoveAI)))
+        buttons.append(spawnImageButton(images["buttonAIvP"], (WIDTH // 2, HEIGHT // 3 + BUTTON_HEIGHT * 2), (getMoveAI, getMovePlayer)))
+        buttons.append(spawnImageButton(images["buttonPvAI"], (WIDTH // 2, HEIGHT // 3 + BUTTON_HEIGHT * 4), (getMovePlayer, getMoveAI)))
+        buttons.append(spawnImageButton(images["buttonPvP"], (WIDTH // 2, HEIGHT // 3 + BUTTON_HEIGHT * 6), (getMovePlayer, getMovePlayer)))
+        buttons.append(spawnImageButton(images["buttonSpectate"], (WIDTH // 2, HEIGHT // 3 + BUTTON_HEIGHT * 8), None))
+        buttons.append(spawnImageButton(images["buttonExit"], (WIDTH // 2, HEIGHT // 3 + BUTTON_HEIGHT * 10), 10))
 
         for button in buttons:
             button.draw(screen)
-            print(button.clicked)
         
         for button in buttons:
             button.draw(screen)
-            print(button.clicked)
             if button.clicked:
                 running = False
-                button.action()
+                play(button.action)
 
         pygame.display.flip()
 
@@ -260,6 +256,8 @@ def colourSelection():
 
 
 def endOfGamePage(winner):
+    time.sleep(1)
+    print("endOfGamePage")
     font = pygame.font.Font(None, 74)
     text = font.render(f"The winner is {winner}!", True, (255, 255, 255))
     text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 5))
@@ -285,9 +283,6 @@ def endOfGamePage(winner):
                 button.action()
 
         pygame.display.flip()
-
-    pygame.quit()
-    sys.exit()
 
 
 def saveGame():

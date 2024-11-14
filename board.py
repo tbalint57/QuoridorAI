@@ -17,6 +17,17 @@ class Board:
         self.moves: Tuple[Tuple[bool, Tuple[int, int], bool], bool] = moves
 
     
+    def reset(self):
+        
+        self.isHorizontalPressed = False
+        self.isVerticalPressed = False
+        self.gameState = Game((0, 4), (8, 4), 10, 10, [], "")
+        self.whiteTurn = True
+        self.moves = []
+
+
+
+    
     def pressVertical(self):
         self.isVerticalPressed = True
         self.isHorizontalPressed = False
