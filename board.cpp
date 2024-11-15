@@ -578,6 +578,47 @@ class Board
     }
 
 
+    void reset(){
+
+        this->whitePawn = 4;
+        this->blackPawn = 132;
+
+        this->whiteWalls = 10;
+        this->blackWalls = 10;
+
+        for(int i = 0; i < 128; i++){
+            this->wallsOnBoard[i] = false;
+            this->takenWallPlaces[i] = false;
+        }
+        for(int i = 0; i < 904; i++){
+            this->walledOffCells[i] = false;
+        }
+
+        this->whitePath = {20, 36, 52, 68, 84, 100, 116, 132};
+        this->blackPath = {116, 100, 84, 68, 52, 36, 20, 4};
+
+        this->winner = 0;
+    }
+
+
+    char getWinner(){
+        return this->winner;
+    }
+
+
+    bool whiteCloser(bool player){
+        if(this->whitePath.size() > this->blackPath.size()){
+            return false;
+        }
+
+        if(this->whitePath.size() < this->blackPath.size()){
+            return true;
+        }
+
+        return player;
+    }
+
+
     bool operator==(const Board& other){
         bool whitePawn = this->whitePawn == other.whitePawn;
         bool blackPawn = this->blackPawn == other.blackPawn;
