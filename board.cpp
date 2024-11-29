@@ -116,7 +116,7 @@ class Board
                 }
             }
         }
-        if (!changeRoute){
+        if (!changeRoute || !foundRoute){
             return foundRoute;
         }
 
@@ -233,7 +233,7 @@ class Board
      * @param player true: white, false: black
      * @return void
      */
-    void executeMove(uint8_t move, bool player){
+    bool executeMove(uint8_t move, bool player){
         if (move >> 7){
             uint8_t wallPlacement = move & 0x7f;
 
@@ -242,9 +242,14 @@ class Board
             wallsOnBoard[wallPlacement] = true;
             takeWallPlaces(wallPlacement);
             addBlockades(wallPlacement);
-            bfs(player, true);
-            bfs(!player, true);
-            return;
+
+            // TODO: optimise this
+            if (bfs(player, false) && bfs(!player, false)){
+                return bfs(player, true) && bfs(!player, true);
+            }
+
+            undoMove(move, player);
+            return false;
         }
 
         if (player) {
@@ -257,16 +262,16 @@ class Board
 
             if (whitePawn == whitePath[0]){
                 whitePath.erase(whitePath.begin());
-                return;
+                return true;
             }
 
             if (whitePawn == whitePath[1]){
                 whitePath.erase(whitePath.begin(), whitePath.begin() + 1);
-                return;
+                return true;
             }
 
             bfs(player, true);
-            return;
+            return true;
         }
 
         if (!player) {
@@ -275,22 +280,24 @@ class Board
 
             if(blackPawn < 9){
                 winner = 'b';
-                return;
+                return true;
             }
 
             if (blackPawn == blackPath[0]){
                 blackPath.erase(blackPath.begin());
-                return;
+                return true;
             }
 
             if (blackPawn == blackPath[1]){
                 blackPath.erase(blackPath.begin(), blackPath.begin() + 1);
-                return;
+                return true;
             }
 
             bfs(player, true);
-            return;
+            return true;
         }
+
+        return true;
     }
     
 
@@ -457,6 +464,120 @@ class Board
     }
 
 
+    vector<uint8_t> generatePossibleMovesUnchecked(bool player){
+        vector<uint8_t> possibleMoves = {};
+
+        if(winner != 0){
+            return possibleMoves;
+        }
+        
+        uint8_t iPlayer = ((player ? whitePawn : blackPawn) & 0xf0) >> 4;
+        uint8_t jPlayer = (player ? whitePawn : blackPawn) & 0x0f; 
+        uint8_t playerPawn = player ? whitePawn : blackPawn;
+        uint8_t opponentPawn = player ? blackPawn : whitePawn;
+        vector<uint8_t> neighbours = getNeighbours(playerPawn);
+
+        // generate pawn moves
+        for(uint8_t neighbour : neighbours){
+            uint8_t i = (neighbour & 0xf0) >> 4;
+            uint8_t j = neighbour & 0x0f;
+
+            if (neighbour != opponentPawn){
+                uint8_t move = (i == iPlayer ? 0 : (i > iPlayer ? 24 : 16)) + (j == jPlayer ? 0 : (j > jPlayer ? 5 : 1));   // simple pawn move
+                possibleMoves.push_back(move);
+                continue;
+            }
+
+            if (i > iPlayer) {
+                if(i < 8 && !walledOffCells[neighbour + UP]){
+                    // hop up
+                    possibleMoves.push_back(40);
+                    continue;
+                }
+                    
+                if (j > 0 && !walledOffCells[neighbour + LEFT]){
+                    // hop up left
+                    possibleMoves.push_back(25);
+                }
+                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
+                    // hop up right
+                    possibleMoves.push_back(29);
+                }
+                continue;
+            }
+
+            if (i < iPlayer) {
+                if(i > 0 && !walledOffCells[neighbour + DOWN]){
+                    // hop down
+                    possibleMoves.push_back(32);
+                    continue;
+                }
+                    
+                if (j > 0 && !walledOffCells[neighbour + LEFT]){
+                    // hop down left
+                    possibleMoves.push_back(17);
+                }
+                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
+                    // hop down right
+                    possibleMoves.push_back(21);
+                }
+                continue;
+            }
+
+            if (j > jPlayer) {
+                if(j < 8 && !walledOffCells[neighbour + RIGHT]){
+                    // hop right
+                    possibleMoves.push_back(6);
+                    continue;
+                }
+                    
+                if (i > 0 && !walledOffCells[neighbour + DOWN]){
+                    // hop right down
+                    possibleMoves.push_back(21);
+                }
+                if (i < 8 && !walledOffCells[neighbour + UP]){
+                    // hop right up
+                    possibleMoves.push_back(29);
+                }
+                continue;
+            }
+
+            if (j < jPlayer) {
+                if(j > 0 && !walledOffCells[neighbour + LEFT]){
+                    // hop left
+                    possibleMoves.push_back(2);
+                    continue;
+                }
+                
+                if (i > 0 && !walledOffCells[neighbour + DOWN]){
+                    // hop left down
+                    possibleMoves.push_back(17);
+                }
+                if (i < 8 && !walledOffCells[neighbour + UP]){
+                    // hop left up
+                    possibleMoves.push_back(25);
+                }
+                continue;
+            }
+        }
+
+        // check whether wall placements can be made
+        if ((player && !whiteWalls) || (!player && !blackWalls)){
+            return possibleMoves;
+        }
+
+        // generates wall placements
+        for(uint8_t wallPlacement = 0; wallPlacement < 0x80; wallPlacement++){
+            if (!takenWallPlaces[wallPlacement]){
+                possibleMoves.push_back(128 + wallPlacement);
+            }
+            
+        }
+
+        return possibleMoves;
+    }
+
+
     /**
      * Evaluate position
      * 
@@ -578,26 +699,23 @@ class Board
     }
 
 
-    void reset(){
-
-        this->whitePawn = 4;
-        this->blackPawn = 132;
-
-        this->whiteWalls = 10;
-        this->blackWalls = 10;
-
+    void set(Board other){
+        this->whitePawn = other.whitePawn;
+        this->blackPawn = other.blackPawn;
+        
         for(int i = 0; i < 128; i++){
-            this->wallsOnBoard[i] = false;
-            this->takenWallPlaces[i] = false;
+            this->wallsOnBoard[i] = other.wallsOnBoard[i];
+            this->takenWallPlaces[i] = other.takenWallPlaces[i];
         }
+
         for(int i = 0; i < 904; i++){
-            this->walledOffCells[i] = false;
+            this->walledOffCells[i] = other.walledOffCells[i];
         }
 
-        this->whitePath = {20, 36, 52, 68, 84, 100, 116, 132};
-        this->blackPath = {116, 100, 84, 68, 52, 36, 20, 4};
+        this->whiteWalls = whiteWalls;
+        this->blackWalls = blackWalls;
 
-        this->winner = 0;
+        this->winner = other.winner;
     }
 
 
@@ -657,8 +775,34 @@ class Board
         if (blackPawn.first == 0){
             winner = 'b';
         }
+
+        this->winner = winner;
     }
     
+
+    Board(Board& other){
+        this->whitePawn = other.whitePawn;
+        this->blackPawn = other.blackPawn;
+
+        this->wallsOnBoard[128] = {false};
+        this->takenWallPlaces[128] = {false};
+        this->walledOffCells[904] = {false};
+        
+        for(int i = 0; i < 128; i++){
+            this->wallsOnBoard[i] = other.wallsOnBoard[i];
+            this->takenWallPlaces[i] = other.takenWallPlaces[i];
+        }
+
+        for(int i = 0; i < 904; i++){
+            this->walledOffCells[i] = other.walledOffCells[i];
+        }
+
+        this->whiteWalls = whiteWalls;
+        this->blackWalls = blackWalls;
+
+        this->winner = other.winner;
+    }
+
 
     Board(){
         this->whitePawn = 4;

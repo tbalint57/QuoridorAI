@@ -1,3 +1,4 @@
+// part 3 application is on the website 13th of february!!!
 #include <stdint.h>
 #include <cstdlib>
 #include <math.h>
@@ -15,7 +16,7 @@ public:
     float value;
 
     void expandNode(Board* board){
-        vector<uint8_t> children = board->generatePossibleMoves(this->player);
+        vector<uint8_t> children = board->generatePossibleMovesUnchecked(this->player);
         for(uint8_t child : children){
             this->children[child] = new Node(this, !this->player);
         }
@@ -59,15 +60,15 @@ uint8_t rolloutPolicy(Board* board, bool player);
 uint8_t bestUCT(Node* node);
 
 
-uint8_t mcts(int rollouts){
+uint8_t mcts(Board state, int rollouts){
     Node *root = new Node(nullptr, true);
-    Board board = Board();
+    Board board = Board(state);
     while(rollouts > 0){
         Node* leaf = findLeaf(root, &board);
         bool simulationResult = rollout(&board, leaf->player);
         backpropagate(leaf, simulationResult);
 
-        board.reset();
+        board.set(state);
 
         rollouts--;
     }
@@ -80,7 +81,11 @@ Node* findLeaf(Node* node, Board* board){
     while(node->expanded){
         uint8_t bestMove = bestUCT(node);
 
-        board->executeMove(bestMove, node->player);
+        if(!board->executeMove(bestMove, node->player)){
+            delete(node->children[bestMove]);
+            node->children[bestMove] = nullptr;
+        }
+
         node = node->children[bestMove];
     }
 
@@ -100,8 +105,12 @@ Node* findLeaf(Node* node, Board* board){
 bool rollout(Board* board, bool player){
     for(int i = 0; i < 90; i++){
         uint8_t bestMove = rolloutPolicy(board, player);
-        board->executeMove(bestMove, player);
-        player =! player;
+        while (!board->executeMove(bestMove, player)){
+            // Be careful with this, if not uniform, can mess things up (infinite loop)
+            bestMove = rolloutPolicy(board, player);
+        }
+
+        player = !player;
 
         if(board->getWinner()){
             return board->getWinner() == 'w';
@@ -117,7 +126,7 @@ void exceptionCatcher(){
 }
 
 uint8_t rolloutPolicy(Board* board, bool player){
-    vector<uint8_t> possibleMoves = board->generatePossibleMoves(player);
+    vector<uint8_t> possibleMoves = board->generatePossibleMovesUnchecked(player);
     return possibleMoves[rand() % possibleMoves.size()];
 }
 
@@ -155,7 +164,17 @@ uint8_t bestUCT(Node* node){
     return bestMove;
 }
 
+#include <chrono> 
 
 int main(int argc, char const *argv[]){
-    cout << (int) mcts(20);
+    srand (time(NULL));
+
+    Board board;
+
+    auto start = chrono::high_resolution_clock::now();
+    cout << board.translateMove(mcts(board, 10000)) << endl;
+    auto end = chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double> duration = end - start;
+    cout << duration.count() << endl;
 }

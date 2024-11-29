@@ -198,7 +198,7 @@ def play(moveFunctions):
         board.executeMove(move)
         running = board.gameState.winner == ""
 
-        gameRecord.write(Game.compressMove(move))
+        gameRecord.write(str(Game.compressMove(move)))
         drawBoard(board.gameState)
         pygame.display.flip()
     
