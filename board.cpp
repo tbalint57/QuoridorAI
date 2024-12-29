@@ -37,13 +37,86 @@ class Board
     bool takenWallPlaces[128] = {false};
     bool walledOffCells[904] = {false};
 
+    // === Not used yet ===
+    vector<uint8_t> neighbouringWalls[128] = {{}};
+    uint8_t wallsTouchingSide[128] = {0};
+
     vector<uint8_t> whitePath = {20, 36, 52, 68, 84, 100, 116, 132};
     vector<uint8_t> blackPath = {116, 100, 84, 68, 52, 36, 20, 4};
 
     char winner = 0;
-    
 
-    void addBlockades(uint8_t wallPlacement){
+    bool dfs(bool player){
+        uint8_t startCell = player ? whitePawn : blackPawn;
+        uint8_t todo[81];
+        size_t todoSize = 0;
+        bool seen[137] = {false};
+
+        todo[todoSize] = startCell;
+        todoSize++;
+        seen[startCell] = true;
+        uint8_t curCell;
+        bool foundRoute = false;
+
+        while (todoSize > 0){
+            curCell = todo[todoSize - 1];
+            todoSize--;
+            foundRoute = (player && curCell >= 128) || (!player && curCell <= 8);
+
+            if (foundRoute){
+                break;
+            }
+
+            uint8_t neighbours[4];
+            size_t neighbourCount = 0;
+            getNeighbours(curCell, neighbours, neighbourCount);
+
+            for (int i = 0; i < neighbourCount; i++){
+                uint8_t neighbour = neighbours[i];
+                if(neighbour <= 136 && !seen[neighbour]){
+                    todo[todoSize] = neighbour;
+                    todoSize++;
+                    seen[neighbour] = true;
+                }
+            }
+        }
+
+        return foundRoute;
+    }
+
+
+    inline void updateWallsOnBoard(uint8_t wallPlacement){
+        wallsOnBoard[wallPlacement] = true;
+    }
+
+
+    inline void updateTakenWallPlaces(uint8_t wallPlacement){
+        takenWallPlaces[wallPlacement] = true;
+        bool isHorizontal = wallPlacement & 0x40;
+
+        if (isHorizontal){
+            takenWallPlaces[wallPlacement - 0x40] = true;
+            if((wallPlacement & 7) < 7){
+                takenWallPlaces[wallPlacement + 1] = true;
+            }
+            if((wallPlacement & 7) > 0){
+                takenWallPlaces[wallPlacement - 1] = true;
+            }
+        }
+
+        if (!isHorizontal){
+            takenWallPlaces[wallPlacement + 0x40] = true;
+            if((wallPlacement & 56) >> 3 < 7){
+                takenWallPlaces[wallPlacement + 8] = true;
+            }
+            if((wallPlacement & 56) >> 3 > 0){
+                takenWallPlaces[wallPlacement - 8] = true;
+            }
+        }
+    }
+
+
+    inline void updateWalledOffCells(uint8_t wallPlacement){
         bool isHorizontal = wallPlacement & 0x40;
         uint8_t i = (wallPlacement & 56) >> 3;
         uint8_t j = wallPlacement & 7;
@@ -61,14 +134,204 @@ class Board
             walledOffCells[16 * (i + 1) + j + RIGHT] = true;
             walledOffCells[16 * (i + 1) + (j + 1) + LEFT] = true;
         }
-    } 
-    
+    }
 
-    void removeBlockades(uint8_t wallPlacement){
+
+    inline void executeWallPlacement(uint8_t wallPlacement){
+        updateWallsOnBoard(wallPlacement);
+
+        updateTakenWallPlaces(wallPlacement);
+
+        updateWalledOffCells(wallPlacement);
+    }
+
+
+    inline void executePawnMove(uint8_t move, uint8_t player){
+        if(player){
+            (move & 8) ? whitePawn += (move & 48) : whitePawn -= (move & 48);
+            (move & 4) ? whitePawn += (move & 3) : whitePawn -= (move & 3);
+
+            if(whitePawn > 127){
+                winner = 'w';
+            }
+        }
+
+        if(!player){
+            (move & 8) ? blackPawn += (move & 48) : blackPawn -= (move & 48);
+            (move & 4) ? blackPawn += (move & 3) : blackPawn -= (move & 3);
+
+            if(blackPawn < 9){
+                winner = 'b';
+            }
+        }
+    }
+
+
+    inline void getNeighbours(uint8_t cell, uint8_t* neighbours, size_t& neighbourCount){        
+        if((cell & 0xf) != 8 && !walledOffCells[cell + RIGHT]){
+            neighbours[neighbourCount] = cell + 1;
+            neighbourCount++;
+        }
+
+        if((cell & 0xf) != 0 && !walledOffCells[cell + LEFT]){
+            neighbours[neighbourCount] = cell - 1;
+            neighbourCount++;
+        }
+
+        if(((cell & 0xf0) >> 4) != 8 && !walledOffCells[cell + UP]){
+            neighbours[neighbourCount] = cell + 16;
+            neighbourCount++;
+        }
+
+        if(((cell & 0xf0) >> 4) != 0 && !walledOffCells[cell + DOWN]){
+            neighbours[neighbourCount] = cell - 16;
+            neighbourCount++;
+        }
+    }
+
+
+    inline void generatePossiblePawnMoves(bool player, uint8_t* possibleMoves, size_t& moveCount){
+        uint8_t iPlayer = ((player ? whitePawn : blackPawn) & 0xf0) >> 4;
+        uint8_t jPlayer = (player ? whitePawn : blackPawn) & 0x0f; 
+        uint8_t playerPawn = player ? whitePawn : blackPawn;
+        uint8_t opponentPawn = player ? blackPawn : whitePawn;
+
+        uint8_t neighbours[4];
+        size_t neighbourCount = 0;
+        getNeighbours(playerPawn, neighbours, neighbourCount);
+
+        for(int ind=0; ind<neighbourCount; ind++){
+            uint8_t neighbour = neighbours[ind];
+            if (neighbour == 255){
+                break;
+            }
+            uint8_t i = (neighbour & 0xf0) >> 4;
+            uint8_t j = neighbour & 0x0f;
+
+            if (neighbour != opponentPawn){
+                uint8_t move = (i == iPlayer ? 0 : (i > iPlayer ? 24 : 16)) + (j == jPlayer ? 0 : (j > jPlayer ? 5 : 1));   // simple pawn move
+                possibleMoves[moveCount] = move;
+                moveCount++;
+                continue;
+            }
+
+            if (i > iPlayer) {
+                if(i < 8 && !walledOffCells[neighbour + UP]){
+                    // hop up
+                    possibleMoves[moveCount] = 40;
+                    moveCount++;
+                    continue;
+                }
+                    
+                if (j > 0 && !walledOffCells[neighbour + LEFT]){
+                    // hop up left
+                    possibleMoves[moveCount] = 25;
+                    moveCount++;
+                }
+                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
+                    // hop up right
+                    possibleMoves[moveCount] = 29;
+                    moveCount++;
+                }
+                continue;
+            }
+
+            if (i < iPlayer) {
+                if(i > 0 && !walledOffCells[neighbour + DOWN]){
+                    // hop down
+                    possibleMoves[moveCount] = 32;
+                    moveCount++;
+                    continue;
+                }
+                    
+                if (j > 0 && !walledOffCells[neighbour + LEFT]){
+                    // hop down left
+                    possibleMoves[moveCount] = 17;
+                    moveCount++;
+                }
+                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
+                    // hop down right
+                    possibleMoves[moveCount] = 21;
+                    moveCount++;
+                }
+                continue;
+            }
+
+            if (j > jPlayer) {
+                if(j < 8 && !walledOffCells[neighbour + RIGHT]){
+                    // hop right
+                    possibleMoves[moveCount] = 6;
+                    moveCount++;
+                    continue;
+                }
+                    
+                if (i > 0 && !walledOffCells[neighbour + DOWN]){
+                    // hop right down
+                    possibleMoves[moveCount] = 21;
+                    moveCount++;
+                }
+                if (i < 8 && !walledOffCells[neighbour + UP]){
+                    // hop right up
+                    possibleMoves[moveCount] = 29;
+                    moveCount++;
+                }
+                continue;
+            }
+
+            if (j < jPlayer) {
+                if(j > 0 && !walledOffCells[neighbour + LEFT]){
+                    // hop left
+                    possibleMoves[moveCount] = 2;
+                    moveCount++;
+                    continue;
+                }
+                
+                if (i > 0 && !walledOffCells[neighbour + DOWN]){
+                    // hop left down
+                    possibleMoves[moveCount] = 17;
+                    moveCount++;
+                }
+                if (i < 8 && !walledOffCells[neighbour + UP]){
+                    // hop left up
+                    possibleMoves[moveCount] = 25;
+                    moveCount++;
+                }
+                continue;
+            }
+        }
+
+    }
+
+
+    inline bool isSafeWallPlacement(uint8_t wallPlacement){
+        // TODO implement
+        return false;
+    }
+
+
+    inline bool isValidWallPlacememnt(uint8_t wallPlacement){
         bool isHorizontal = wallPlacement & 0x40;
         uint8_t i = (wallPlacement & 56) >> 3;
         uint8_t j = wallPlacement & 7;
 
+        // add blockades
+        if(isHorizontal){
+            walledOffCells[16 * i + j + UP] = true;
+            walledOffCells[16 * (i + 1) + j + DOWN] = true;
+            walledOffCells[16 * i + j + 1 + UP] = true;
+            walledOffCells[16 * (i + 1) + (j + 1) + DOWN] = true;
+        }
+
+        if(!isHorizontal){
+            walledOffCells[16 * i + j + RIGHT] = true;
+            walledOffCells[16 * i + j + 1 + LEFT] = true;
+            walledOffCells[16 * (i + 1) + j + RIGHT] = true;
+            walledOffCells[16 * (i + 1) + (j + 1) + LEFT] = true;
+        }
+
+        bool validity = dfs(true) && dfs(false);
+
+        // remove blockades
         if(isHorizontal){
             walledOffCells[16 * i + j + UP] = false;
             walledOffCells[16 * (i + 1) + j + DOWN] = false;
@@ -82,369 +345,14 @@ class Board
             walledOffCells[16 * (i + 1) + j + RIGHT] = false;
             walledOffCells[16 * (i + 1) + (j + 1) + LEFT] = false;
         }
-    } 
-
-
-    bool bfs(bool player, bool changeRoute){
-        uint8_t startCell = player ? whitePawn : blackPawn;
-        queue<uint8_t> todo = {};
-        uint8_t parent[137] = {0};
-        bool seen[137] = {false};
-
-        todo.push(startCell);
-        parent[startCell] = startCell;
-        seen[startCell] = true;
-        uint8_t curCell;
-        bool foundRoute = false;
-
-        while (todo.size() > 0){
-            curCell = todo.front();
-            foundRoute = (player && curCell >= 128) || (!player && curCell <= 8);
-
-            if (foundRoute){
-                break;
-            }
-
-            todo.pop();
-            vector<uint8_t> neighbours = getNeighbours(curCell);
-
-            for (uint8_t neighbour : neighbours){
-                if(neighbour <= 136 && !seen[neighbour]){
-                    todo.push(neighbour);
-                    parent[neighbour] = curCell;
-                    seen[neighbour] = true;
-                }
-            }
-        }
-        if (!changeRoute || !foundRoute){
-            return foundRoute;
-        }
-
-        // finish logic
-        vector<uint8_t> newPath = {};
-        while (curCell != startCell){
-            newPath.push_back(curCell);
-            curCell = parent[curCell];
-        }
-        reverse(newPath.begin(), newPath.end());
-
-        player ? whitePath = newPath : blackPath = newPath;
-        return foundRoute;
+        return validity;
     }
 
 
-    bool checkMoveValidity(uint8_t move, bool player){
-        vector<uint8_t> possibleMoves = generatePossibleMoves(player);
-
-        for (uint8_t possibleMove : possibleMoves){
-            if (move == possibleMove){
-                return true;
-            }
-        }
-        return false;
-    }
-    
-
-    vector<uint8_t> getNeighbours(uint8_t cell){
-        vector<uint8_t> neighbours = {};
-
-        if((cell & 0xf) != 8 && !walledOffCells[cell + RIGHT]){
-            neighbours.push_back(cell + 1);
-        }
-
-        if((cell & 0xf) != 0 && !walledOffCells[cell + LEFT]){
-            neighbours.push_back(cell - 1);
-        }
-
-        if(((cell & 0xf0) >> 4) != 8 && !walledOffCells[cell + UP]){
-            neighbours.push_back(cell + 16);
-        }
-
-        if(((cell & 0xf0) >> 4) != 0 && !walledOffCells[cell + DOWN]){
-            neighbours.push_back(cell - 16);
-        }
-
-        return neighbours;
-    }
-
-
-    void giveWallPlaces(uint8_t wallPlacement){
-        takenWallPlaces[wallPlacement] = false;
-        bool isHorizontal = wallPlacement & 0x40;
-
-        if (isHorizontal){
-            if(!wallsOnBoard[wallPlacement - 0x40 + 8] && !wallsOnBoard[wallPlacement - 0x40 - 8]){
-                takenWallPlaces[wallPlacement - 0x40] = false;
-            }
-            if((wallPlacement & 7) < 7 && !wallsOnBoard[wallPlacement + 1 + 1]&& !wallsOnBoard[wallPlacement + 1 - 0x40]){
-                takenWallPlaces[wallPlacement + 1] = false;
-            }
-            if((wallPlacement & 7&& !wallsOnBoard[wallPlacement - 1 - 1]&& !wallsOnBoard[wallPlacement - 1 - 0x40]) > 0){
-                takenWallPlaces[wallPlacement - 1] = false;
-            }
-        }
-
-        if (!isHorizontal){
-            if(!wallsOnBoard[wallPlacement + 0x40 + 1] && !wallsOnBoard[wallPlacement + 0x40 - 1]){
-                takenWallPlaces[wallPlacement + 0x40] = false;
-            }
-            if((wallPlacement & 56) >> 3 < 7 && !wallsOnBoard[wallPlacement + 8 + 8] && !wallsOnBoard[wallPlacement + 8 + 0x40]){
-                takenWallPlaces[wallPlacement + 8] = false;
-            }
-            if((wallPlacement & 56) >> 3 > 0 && !wallsOnBoard[wallPlacement - 8 - 8] && !wallsOnBoard[wallPlacement - 8 + 0x40]){
-                takenWallPlaces[wallPlacement - 8] = false;
-            }
-        }
-    }
-    
-
-    void takeWallPlaces(uint8_t wallPlacement){
-        takenWallPlaces[wallPlacement] = true;
-        bool isHorizontal = wallPlacement & 0x40;
-
-        if (isHorizontal){
-            takenWallPlaces[wallPlacement - 0x40] = true;
-            if((wallPlacement & 7) < 7){
-                takenWallPlaces[wallPlacement + 1] = true;
-            }
-            if((wallPlacement & 7) > 0){
-                takenWallPlaces[wallPlacement - 1] = true;
-            }
-        }
-
-        if (!isHorizontal){
-            takenWallPlaces[wallPlacement + 0x40] = true;
-            if((wallPlacement & 56) >> 3 < 7){  // fixed logic (added >> 3)
-                takenWallPlaces[wallPlacement + 8] = true;
-            }
-            if((wallPlacement & 56) >> 3 > 0){  // fixed logic (added >> 3)
-                takenWallPlaces[wallPlacement - 8] = true;
-            }
-        }
-    }
-
-
-    public:
-
-    /**
-     * Execute a valid move
-     * 
-     * @param move Valid move   ASSUMPTION: move is valid
-     * @param player true: white, false: black
-     * @return void
-     */
-    bool executeMove(uint8_t move, bool player){
-        if (move >> 7){
-            uint8_t wallPlacement = move & 0x7f;
-
-            player ? whiteWalls-- : blackWalls--;
-
-            wallsOnBoard[wallPlacement] = true;
-            takeWallPlaces(wallPlacement);
-            addBlockades(wallPlacement);
-
-            // TODO: optimise this
-            if (bfs(player, false) && bfs(!player, false)){
-                return bfs(player, true) && bfs(!player, true);
-            }
-
-            undoMove(move, player);
-            return false;
-        }
-
-        if (player) {
-            (move & 8) ? whitePawn += (move & 48) : whitePawn -= (move & 48);
-            (move & 4) ? whitePawn += (move & 3) : whitePawn -= (move & 3);
-
-            if(whitePawn > 127){
-                winner = 'w';
-            }
-
-            if (whitePawn == whitePath[0]){
-                whitePath.erase(whitePath.begin());
-                return true;
-            }
-
-            if (whitePawn == whitePath[1]){
-                whitePath.erase(whitePath.begin(), whitePath.begin() + 1);
-                return true;
-            }
-
-            bfs(player, true);
-            return true;
-        }
-
-        if (!player) {
-            (move & 8) ? blackPawn += (move & 48) : blackPawn -= (move & 48);
-            (move & 4) ? blackPawn += (move & 3) : blackPawn -= (move & 3);
-
-            if(blackPawn < 9){
-                winner = 'b';
-                return true;
-            }
-
-            if (blackPawn == blackPath[0]){
-                blackPath.erase(blackPath.begin());
-                return true;
-            }
-
-            if (blackPawn == blackPath[1]){
-                blackPath.erase(blackPath.begin(), blackPath.begin() + 1);
-                return true;
-            }
-
-            bfs(player, true);
-            return true;
-        }
-
-        return true;
-    }
-    
-
-    /**
-     * Undo last move
-     * 
-     * @param move Last move   ASSUMPTION: move was the last move
-     * @param player true: white, false: black
-     * @return void
-     */
-    void undoMove(uint8_t move, bool player){
-        winner = 0;
-        if (move >> 7){
-            uint8_t wallPlacement = move & 0x7f;
-
-            player ? whiteWalls++ : blackWalls++;
-
-            wallsOnBoard[wallPlacement] = false;
-            giveWallPlaces(wallPlacement);
-            removeBlockades(wallPlacement);
-            bfs(player, true);
-            bfs(!player, true);
-            return;
-        }
-
-        if (player) {
-            (move & 8) ? whitePawn -= (move & 48) : whitePawn += (move & 48);
-            (move & 4) ? whitePawn -= (move & 3) : whitePawn += (move & 3);
-            bfs(player, true);
-            return;
-        }
-
-        if (!player) {
-            (move & 8) ? blackPawn -= (move & 48) : blackPawn += (move & 48);
-            (move & 4) ? blackPawn -= (move & 3) : blackPawn += (move & 3);
-            bfs(player, true);
-            return;
-        }
-    }
-
-
-    /**
-     * Generate possible move for given player
-     * 
-     * @param player true: white, false: black
-     * @return possible moves in a vector
-     */
-    vector<uint8_t> generatePossibleMoves(bool player){
-        vector<uint8_t> possibleMoves = {};
-
-        if(winner != 0){
-            return possibleMoves;
-        }
-        
-        uint8_t iPlayer = ((player ? whitePawn : blackPawn) & 0xf0) >> 4;
-        uint8_t jPlayer = (player ? whitePawn : blackPawn) & 0x0f; 
-        uint8_t playerPawn = player ? whitePawn : blackPawn;
-        uint8_t opponentPawn = player ? blackPawn : whitePawn;
-        vector<uint8_t> neighbours = getNeighbours(playerPawn);
-
-        // generate pawn moves
-        for(uint8_t neighbour : neighbours){
-            uint8_t i = (neighbour & 0xf0) >> 4;
-            uint8_t j = neighbour & 0x0f;
-
-            if (neighbour != opponentPawn){
-                uint8_t move = (i == iPlayer ? 0 : (i > iPlayer ? 24 : 16)) + (j == jPlayer ? 0 : (j > jPlayer ? 5 : 1));   // simple pawn move
-                possibleMoves.push_back(move);
-                continue;
-            }
-
-            if (i > iPlayer) {
-                if(i < 8 && !walledOffCells[neighbour + UP]){
-                    // hop up
-                    possibleMoves.push_back(40);
-                    continue;
-                }
-                    
-                if (j > 0 && !walledOffCells[neighbour + LEFT]){
-                    // hop up left
-                    possibleMoves.push_back(25);
-                }
-                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
-                    // hop up right
-                    possibleMoves.push_back(29);
-                }
-                continue;
-            }
-
-            if (i < iPlayer) {
-                if(i > 0 && !walledOffCells[neighbour + DOWN]){
-                    // hop down
-                    possibleMoves.push_back(32);
-                    continue;
-                }
-                    
-                if (j > 0 && !walledOffCells[neighbour + LEFT]){
-                    // hop down left
-                    possibleMoves.push_back(17);
-                }
-                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
-                    // hop down right
-                    possibleMoves.push_back(21);
-                }
-                continue;
-            }
-
-            if (j > jPlayer) {
-                if(j < 8 && !walledOffCells[neighbour + RIGHT]){
-                    // hop right
-                    possibleMoves.push_back(6);
-                    continue;
-                }
-                    
-                if (i > 0 && !walledOffCells[neighbour + DOWN]){
-                    // hop right down
-                    possibleMoves.push_back(21);
-                }
-                if (i < 8 && !walledOffCells[neighbour + UP]){
-                    // hop right up
-                    possibleMoves.push_back(29);
-                }
-                continue;
-            }
-
-            if (j < jPlayer) {
-                if(j > 0 && !walledOffCells[neighbour + LEFT]){
-                    // hop left
-                    possibleMoves.push_back(2);
-                    continue;
-                }
-                
-                if (i > 0 && !walledOffCells[neighbour + DOWN]){
-                    // hop left down
-                    possibleMoves.push_back(17);
-                }
-                if (i < 8 && !walledOffCells[neighbour + UP]){
-                    // hop left up
-                    possibleMoves.push_back(25);
-                }
-                continue;
-            }
-        }
-
+    inline void generatePossibleWallPlacements(bool player, uint8_t* possibleMoves, size_t& moveCount){
         // check whether wall placements can be made
         if ((player && !whiteWalls) || (!player && !blackWalls)){
-            return possibleMoves;
+            return;
         }
 
         // generates wall placements
@@ -453,128 +361,75 @@ class Board
                 continue;
             }
 
-            addBlockades(wallPlacement);
-            if(bfs(true, false) && bfs(false, false)){
-                possibleMoves.push_back(128 + wallPlacement);
+            if (isSafeWallPlacement(wallPlacement)){
+                possibleMoves[moveCount] = 128 + wallPlacement;
+                moveCount++;
+                continue;
             }
-            removeBlockades(wallPlacement);
+
+            if (isValidWallPlacememnt(wallPlacement)){
+                possibleMoves[moveCount] = 128 + wallPlacement;
+                moveCount++;
+                continue;
+            }
         }
 
-        return possibleMoves;
     }
 
 
-    vector<uint8_t> generatePossibleMovesUnchecked(bool player){
-        vector<uint8_t> possibleMoves = {};
+    inline bool checkMoveValidity(uint8_t move, bool player){
+        size_t moveCount = 0;
+        uint8_t possibleMoves[256];
+        generatePossibleMoves(player, possibleMoves, moveCount);
 
-        if(winner != 0){
-            return possibleMoves;
+        for (int i = 0; i < moveCount; i++){
+            if (move == possibleMoves[i]){
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    public:
+
+
+    /**
+     * Execute a valid move
+     * 
+     * @param move Valid move   ASSUMPTION: move is valid
+     * @param player true: white, false: black
+     * @return void
+     */
+    void executeMove(uint8_t move, bool player){
+        if (move >> 7){
+            uint8_t wallPlacement = move & 0b01111111;
+            player ? whiteWalls-- : blackWalls--;
+            executeWallPlacement(wallPlacement);
+        }
+        else{
+            executePawnMove(move, player);
         }
         
-        uint8_t iPlayer = ((player ? whitePawn : blackPawn) & 0xf0) >> 4;
-        uint8_t jPlayer = (player ? whitePawn : blackPawn) & 0x0f; 
-        uint8_t playerPawn = player ? whitePawn : blackPawn;
-        uint8_t opponentPawn = player ? blackPawn : whitePawn;
-        vector<uint8_t> neighbours = getNeighbours(playerPawn);
-
-        // generate pawn moves
-        for(uint8_t neighbour : neighbours){
-            uint8_t i = (neighbour & 0xf0) >> 4;
-            uint8_t j = neighbour & 0x0f;
-
-            if (neighbour != opponentPawn){
-                uint8_t move = (i == iPlayer ? 0 : (i > iPlayer ? 24 : 16)) + (j == jPlayer ? 0 : (j > jPlayer ? 5 : 1));   // simple pawn move
-                possibleMoves.push_back(move);
-                continue;
-            }
-
-            if (i > iPlayer) {
-                if(i < 8 && !walledOffCells[neighbour + UP]){
-                    // hop up
-                    possibleMoves.push_back(40);
-                    continue;
-                }
-                    
-                if (j > 0 && !walledOffCells[neighbour + LEFT]){
-                    // hop up left
-                    possibleMoves.push_back(25);
-                }
-                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
-                    // hop up right
-                    possibleMoves.push_back(29);
-                }
-                continue;
-            }
-
-            if (i < iPlayer) {
-                if(i > 0 && !walledOffCells[neighbour + DOWN]){
-                    // hop down
-                    possibleMoves.push_back(32);
-                    continue;
-                }
-                    
-                if (j > 0 && !walledOffCells[neighbour + LEFT]){
-                    // hop down left
-                    possibleMoves.push_back(17);
-                }
-                if (j < 8 && !walledOffCells[neighbour + RIGHT]){
-                    // hop down right
-                    possibleMoves.push_back(21);
-                }
-                continue;
-            }
-
-            if (j > jPlayer) {
-                if(j < 8 && !walledOffCells[neighbour + RIGHT]){
-                    // hop right
-                    possibleMoves.push_back(6);
-                    continue;
-                }
-                    
-                if (i > 0 && !walledOffCells[neighbour + DOWN]){
-                    // hop right down
-                    possibleMoves.push_back(21);
-                }
-                if (i < 8 && !walledOffCells[neighbour + UP]){
-                    // hop right up
-                    possibleMoves.push_back(29);
-                }
-                continue;
-            }
-
-            if (j < jPlayer) {
-                if(j > 0 && !walledOffCells[neighbour + LEFT]){
-                    // hop left
-                    possibleMoves.push_back(2);
-                    continue;
-                }
-                
-                if (i > 0 && !walledOffCells[neighbour + DOWN]){
-                    // hop left down
-                    possibleMoves.push_back(17);
-                }
-                if (i < 8 && !walledOffCells[neighbour + UP]){
-                    // hop left up
-                    possibleMoves.push_back(25);
-                }
-                continue;
-            }
+        int iWhite = (whitePawn & 0xf0) >> 4;
+        int jWhite = whitePawn & 0x0f;
+        int iBlack = (blackPawn & 0xf0) >> 4;
+        int jBlack = blackPawn & 0x0f;
+        if (iWhite > 8 || iBlack > 8 || jWhite > 8 || jBlack > 8){
+            cout << "Pawn Out Of Bound\n";
         }
+    }
+    
 
-        // check whether wall placements can be made
-        if ((player && !whiteWalls) || (!player && !blackWalls)){
-            return possibleMoves;
-        }
-
-        // generates wall placements
-        for(uint8_t wallPlacement = 0; wallPlacement < 0x80; wallPlacement++){
-            if (!takenWallPlaces[wallPlacement]){
-                possibleMoves.push_back(128 + wallPlacement);
-            }
-            
-        }
-
-        return possibleMoves;
+    /**
+     * Generate possible move for given player
+     * 
+     * @param player true: white, false: black
+     * @return possible moves in a vector
+     */
+    void generatePossibleMoves(bool player, uint8_t* possibleMoves, size_t& moveCount){        
+        generatePossiblePawnMoves(player, possibleMoves, moveCount);
+        generatePossibleWallPlacements(player, possibleMoves, moveCount);
     }
 
 
@@ -616,9 +471,17 @@ class Board
                 }
             }
         }
-
-        float numberOfWhiteNeighbours = (float) getNeighbours(whitePawn).size();
-        float numberOfBlackNeighbours = (float) getNeighbours(blackPawn).size();
+        
+        uint8_t whiteNeighbours[4];
+        size_t whiteNeighbourCount = 0;
+        getNeighbours(whitePawn, whiteNeighbours, whiteNeighbourCount);
+        
+        uint8_t blackNeighbours[4];
+        size_t blackNeighbourCount = 0;
+        getNeighbours(blackPawn, blackNeighbours, blackNeighbourCount);
+        
+        float numberOfWhiteNeighbours = (float) whiteNeighbourCount;
+        float numberOfBlackNeighbours = (float) blackNeighbourCount;
 
         float heuristics[8] = {whitePathLength, blackPathLength, whiteWallCount, blackWallCount, numberOfWallsAheadWhite, numberOfWallsAheadBlack, numberOfWhiteNeighbours, numberOfBlackNeighbours};
         float weights[8] = {-1.0f, 1.0f, 0.5f, -0.5f, -0.2f, 0.2f, 0.1f, -0.1f};
@@ -699,24 +562,27 @@ class Board
     }
 
 
-    void set(Board other){
+    Board& operator=(const Board& other) {
+    if (this != &other) {
         this->whitePawn = other.whitePawn;
         this->blackPawn = other.blackPawn;
-        
-        for(int i = 0; i < 128; i++){
+
+        for (int i = 0; i < 128; i++) {
             this->wallsOnBoard[i] = other.wallsOnBoard[i];
             this->takenWallPlaces[i] = other.takenWallPlaces[i];
         }
 
-        for(int i = 0; i < 904; i++){
+        for (int i = 0; i < 904; i++) {
             this->walledOffCells[i] = other.walledOffCells[i];
         }
 
-        this->whiteWalls = whiteWalls;
-        this->blackWalls = blackWalls;
+        this->whiteWalls = other.whiteWalls;
+        this->blackWalls = other.blackWalls;
 
         this->winner = other.winner;
     }
+    return *this;
+}
 
 
     char getWinner(){
@@ -821,3 +687,4 @@ class Board
         char winner = 0;
     }
 };
+

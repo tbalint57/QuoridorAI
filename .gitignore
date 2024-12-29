@@ -11,3 +11,4 @@ record.txt
 savedGames/*
 .*
 main
+mcts

@@ -2,7 +2,14 @@
 #include <stdint.h>
 #include <cstdlib>
 #include <math.h>
+#include <queue>
 #include "board.cpp"
+
+float MCTS_CONST = 1;
+
+vector<uint8_t> movesExecuted = {};
+int number_of_retries = 0;
+int number_of_tries = 0;
 
 class Node
 {
@@ -11,24 +18,34 @@ public:
     Node* parent;
     bool player;
     bool expanded;
-    int wins;
-    int losses;
-    float value;
+    int whiteWins;
+    int blackWins;
+    int depth;
 
     void expandNode(Board* board){
-        vector<uint8_t> children = board->generatePossibleMovesUnchecked(this->player);
-        for(uint8_t child : children){
+        uint8_t possibleMoves[256];
+        size_t moveCount = 0;
+        board->generatePossibleMoves(this->player, possibleMoves, moveCount);
+        for(int i = 0; i < moveCount; i++){
+            uint8_t child = possibleMoves[i];
             this->children[child] = new Node(this, !this->player);
         }
         this->expanded = true;
     }
 
 
-    void updateValue(){
-        int n_parent, n_node = this->wins + this->losses;
-        n_parent = (parent ? this->parent->wins + this->parent->losses : n_node);
+    float getValue(bool player){
+        float n_node = (float)(this->whiteWins + this->blackWins);
 
-        this->value = this->wins / n_node + sqrt(2) * sqrt(log(n_parent) / n_node);
+        if (!n_node){
+            return -1;
+        }
+
+        float n_parent = (float)(parent ? this->parent->whiteWins + this->parent->blackWins : n_node);
+
+        float wins = (float)(player ? whiteWins : blackWins);
+
+        return wins / n_node + MCTS_CONST * sqrt(log(n_parent) / n_node);
     }
 
 
@@ -36,9 +53,9 @@ public:
         this->parent = parent;
         this->player = player;
         this->expanded = false;
-        this->wins = 0;
-        this->losses = 0;
-        this->value = -1;
+        this->whiteWins = 0;
+        this->blackWins = 0;
+        this->depth = parent ? parent->depth + 1 : 0;
     }
 
 
@@ -58,37 +75,41 @@ bool rollout(Board* board, bool player);
 void backpropagate(Node* node, bool result);
 uint8_t rolloutPolicy(Board* board, bool player);
 uint8_t bestUCT(Node* node);
+uint8_t mostVisitedMove(Node* node);
 
 
-uint8_t mcts(Board state, int rollouts){
-    Node *root = new Node(nullptr, true);
+uint8_t mcts(Board state, int rollouts, bool whiteTurn){
+    Node *root = new Node(nullptr, whiteTurn);
     Board board = Board(state);
+
     while(rollouts > 0){
         Node* leaf = findLeaf(root, &board);
         bool simulationResult = rollout(&board, leaf->player);
         backpropagate(leaf, simulationResult);
 
-        board.set(state);
-
+        board = state;
+        movesExecuted = {};
         rollouts--;
     }
 
-    return bestUCT(root);
+    uint8_t bestMove = mostVisitedMove(root);
+    delete(root);    
+    return bestMove;
 }
 
 
 Node* findLeaf(Node* node, Board* board){
     while(node->expanded){
+
         uint8_t bestMove = bestUCT(node);
 
-        if(!board->executeMove(bestMove, node->player)){
-            delete(node->children[bestMove]);
-            node->children[bestMove] = nullptr;
-        }
-
+        board->executeMove(bestMove, node->player);
+        movesExecuted.push_back(bestMove);
+        
         node = node->children[bestMove];
     }
 
+    // When a board has a winner, it must be a leaf
     if(board->getWinner() != 0){
         return node;
     }
@@ -97,18 +118,19 @@ Node* findLeaf(Node* node, Board* board){
     uint8_t bestMove = bestUCT(node);
 
     board->executeMove(bestMove, node->player);
+    movesExecuted.push_back(bestMove);
+
     node = node->children[bestMove];
     return node;
 }
 
 
 bool rollout(Board* board, bool player){
-    for(int i = 0; i < 90; i++){
+    for(int i = 0; i < 40; i++){
         uint8_t bestMove = rolloutPolicy(board, player);
-        while (!board->executeMove(bestMove, player)){
-            // Be careful with this, if not uniform, can mess things up (infinite loop)
-            bestMove = rolloutPolicy(board, player);
-        }
+        board->executeMove(bestMove, player);
+        movesExecuted.push_back(bestMove);
+        number_of_tries ++;
 
         player = !player;
 
@@ -121,28 +143,32 @@ bool rollout(Board* board, bool player){
 }
 
 
-void exceptionCatcher(){
-    cout << "alma";
-}
-
 uint8_t rolloutPolicy(Board* board, bool player){
-    vector<uint8_t> possibleMoves = board->generatePossibleMovesUnchecked(player);
-    return possibleMoves[rand() % possibleMoves.size()];
+    uint8_t possibleMoves[256];
+    size_t moveCount = 0;
+    board->generatePossibleMoves(player, possibleMoves, moveCount);
+
+    if (!moveCount){
+        cout << "fucked up\n";
+        uint8_t possibleMoves[256];
+        size_t moveCount = 0;
+        board->generatePossibleMoves(player, possibleMoves, moveCount);
+    }
+    return possibleMoves[rand() % moveCount];
 }
 
 
 void backpropagate(Node* node, bool result){
     while(node){
-        result ? node->wins++ : node->losses++;
-        node->updateValue();
+        result ? node->whiteWins++ : node->blackWins++;
         node = node->parent;
     }
 }
 
 
 uint8_t bestUCT(Node* node){
-    float bestValue = (node->player ? -1000.0f : 1000.0f);
-    uint8_t bestMove = 127;
+    float bestValue = -1;
+    uint8_t bestMove = 0;
 
     for (int move = 0; move < 256; move++){
         Node* child = node->children[move];
@@ -150,17 +176,43 @@ uint8_t bestUCT(Node* node){
             continue;
         }
 
-        if(child->value == -1){
+        if(child->getValue(node->player) == -1){
             return move;
         }
 
-        bool betterValue = (node->player && child->value > bestValue) || (!node->player && child->value < bestValue);
-        if(betterValue){
-            bestValue = child->value;
+        if(child->getValue(node->player) > bestValue){
+            bestValue = child->getValue(node->player);
             bestMove = move;
         }
     }
 
+    if(!bestMove){
+        cout << "bestUCT infinite loop\n";
+        bestMove = bestUCT(node);
+    }
+
+    return bestMove;
+}
+
+uint8_t mostVisitedMove(Node* node){
+    int bestValue = -1;
+    uint8_t bestMove = 0;
+
+    for (int move = 0; move < 256; move++){
+        Node* child = node->children[move];
+        if(!child){
+            continue;
+        }
+
+        if(child->getValue(node->player) == -1){
+            return move;
+        }
+
+        if(child->whiteWins + child->blackWins > bestValue){
+            bestValue = child->whiteWins + child->blackWins;
+            bestMove = move;
+        }
+    }
     return bestMove;
 }
 
@@ -169,12 +221,35 @@ uint8_t bestUCT(Node* node){
 int main(int argc, char const *argv[]){
     srand (time(NULL));
 
-    Board board;
+    Board board = Board();
+    bool whiteTurn = true;
+
 
     auto start = chrono::high_resolution_clock::now();
-    cout << board.translateMove(mcts(board, 10000)) << endl;
-    auto end = chrono::high_resolution_clock::now();
 
+    uint8_t move = mcts(board, 10000, whiteTurn);
+    cout << board.translateMove(move) << endl;
+
+    auto end = chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-    cout << duration.count() << endl;
+    cout << "Move made in " << duration.count() << " seconds" << endl;
+
+    // for(int i = 0; i < 100; i++){
+    //     auto start = chrono::high_resolution_clock::now();
+
+    //     uint8_t move = mcts(board, 10000, whiteTurn);
+    //     cout << board.translateMove(move) << endl;
+
+    //     auto end = chrono::high_resolution_clock::now();
+    //     std::chrono::duration<double> duration = end - start;
+    //     cout << "Move made in " << duration.count() << " seconds" << endl;
+
+    //     board.executeMove(move, whiteTurn);
+    //     if(board.getWinner()){
+    //         break;
+    //     }
+    //     whiteTurn = !whiteTurn;
+    // }
 }
+
+// lookup gcc profiler!!!
