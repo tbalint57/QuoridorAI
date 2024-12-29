@@ -56,6 +56,7 @@ class Board
         todoSize++;
         seen[startCell] = true;
         uint8_t curCell;
+        uint8_t neighbourCell;
         bool foundRoute = false;
 
         while (todoSize > 0){
@@ -67,16 +68,40 @@ class Board
                 break;
             }
 
-            uint8_t neighbours[4];
-            size_t neighbourCount = 0;
-            getNeighbours(curCell, neighbours, neighbourCount);
-
-            for (int i = 0; i < neighbourCount; i++){
-                uint8_t neighbour = neighbours[i];
-                if(neighbour <= 136 && !seen[neighbour]){
-                    todo[todoSize] = neighbour;
+            // This is ugly, but really good for performance...
+            if((curCell & 0xf) != 8 && !walledOffCells[curCell + RIGHT]){
+                neighbourCell = curCell + 1;
+                if (!seen[neighbourCell]){
+                    todo[todoSize] = neighbourCell;
                     todoSize++;
-                    seen[neighbour] = true;
+                    seen[neighbourCell] = true;
+                }
+            }
+
+            if((curCell & 0xf) != 0 && !walledOffCells[curCell + LEFT]){
+                neighbourCell = curCell - 1;
+                if (!seen[neighbourCell]){
+                    todo[todoSize] = neighbourCell;
+                    todoSize++;
+                    seen[neighbourCell] = true;
+                }
+            }
+
+            if(((curCell & 0xf0) >> 4) != 8 && !walledOffCells[curCell + UP]){
+                neighbourCell = curCell + 16;
+                if (!seen[neighbourCell]){
+                    todo[todoSize] = neighbourCell;
+                    todoSize++;
+                    seen[neighbourCell] = true;
+                }
+            }
+
+            if(((curCell & 0xf0) >> 4) != 0 && !walledOffCells[curCell + DOWN]){
+                neighbourCell = curCell - 16;
+                if (!seen[neighbourCell]){
+                    todo[todoSize] = neighbourCell;
+                    todoSize++;
+                    seen[neighbourCell] = true;
                 }
             }
         }
@@ -139,9 +164,7 @@ class Board
 
     inline void executeWallPlacement(uint8_t wallPlacement){
         updateWallsOnBoard(wallPlacement);
-
         updateTakenWallPlaces(wallPlacement);
-
         updateWalledOffCells(wallPlacement);
     }
 
@@ -167,7 +190,7 @@ class Board
     }
 
 
-    inline void getNeighbours(uint8_t cell, uint8_t* neighbours, size_t& neighbourCount){        
+    inline void getNeighbours(uint8_t cell, uint8_t* neighbours, size_t& neighbourCount){
         if((cell & 0xf) != 8 && !walledOffCells[cell + RIGHT]){
             neighbours[neighbourCount] = cell + 1;
             neighbourCount++;
@@ -309,7 +332,52 @@ class Board
     }
 
 
-    inline bool isValidWallPlacememnt(uint8_t wallPlacement){
+    inline void generatePossibleWallPlacements(bool player, uint8_t* possibleMoves, size_t& moveCount, bool checkValidity=true){
+        // check whether wall placements can be made
+        if ((player && !whiteWalls) || (!player && !blackWalls)){
+            return;
+        }
+
+        // generates wall placements
+        for(uint8_t wallPlacement = 0; wallPlacement < 0x80; wallPlacement++){
+            if (takenWallPlaces[wallPlacement]){
+                continue;
+            }
+
+            if (isSafeWallPlacement(wallPlacement) || !checkValidity){
+                possibleMoves[moveCount] = 128 + wallPlacement;
+                moveCount++;
+                continue;
+            }
+
+            if (isValidWallPlacement(wallPlacement)){
+                possibleMoves[moveCount] = 128 + wallPlacement;
+                moveCount++;
+                continue;
+            }
+        }
+
+    }
+
+
+    inline bool checkMoveValidity(uint8_t move, bool player){
+        size_t moveCount = 0;
+        uint8_t possibleMoves[256];
+        generatePossibleMoves(player, possibleMoves, moveCount);
+
+        for (int i = 0; i < moveCount; i++){
+            if (move == possibleMoves[i]){
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    public:
+    
+
+    inline bool isValidWallPlacement(uint8_t wallPlacement){
         bool isHorizontal = wallPlacement & 0x40;
         uint8_t i = (wallPlacement & 56) >> 3;
         uint8_t j = wallPlacement & 7;
@@ -349,51 +417,6 @@ class Board
     }
 
 
-    inline void generatePossibleWallPlacements(bool player, uint8_t* possibleMoves, size_t& moveCount){
-        // check whether wall placements can be made
-        if ((player && !whiteWalls) || (!player && !blackWalls)){
-            return;
-        }
-
-        // generates wall placements
-        for(uint8_t wallPlacement = 0; wallPlacement < 0x80; wallPlacement++){
-            if (takenWallPlaces[wallPlacement]){
-                continue;
-            }
-
-            if (isSafeWallPlacement(wallPlacement)){
-                possibleMoves[moveCount] = 128 + wallPlacement;
-                moveCount++;
-                continue;
-            }
-
-            if (isValidWallPlacememnt(wallPlacement)){
-                possibleMoves[moveCount] = 128 + wallPlacement;
-                moveCount++;
-                continue;
-            }
-        }
-
-    }
-
-
-    inline bool checkMoveValidity(uint8_t move, bool player){
-        size_t moveCount = 0;
-        uint8_t possibleMoves[256];
-        generatePossibleMoves(player, possibleMoves, moveCount);
-
-        for (int i = 0; i < moveCount; i++){
-            if (move == possibleMoves[i]){
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-    public:
-
-
     /**
      * Execute a valid move
      * 
@@ -430,6 +453,12 @@ class Board
     void generatePossibleMoves(bool player, uint8_t* possibleMoves, size_t& moveCount){        
         generatePossiblePawnMoves(player, possibleMoves, moveCount);
         generatePossibleWallPlacements(player, possibleMoves, moveCount);
+    }
+
+
+    void generatePossibleMovesUnchecked(bool player, uint8_t* possibleMoves, size_t& moveCount){        
+        generatePossiblePawnMoves(player, possibleMoves, moveCount);
+        generatePossibleWallPlacements(player, possibleMoves, moveCount, false);
     }
 
 

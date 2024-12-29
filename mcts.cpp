@@ -143,20 +143,35 @@ bool rollout(Board* board, bool player){
 }
 
 
-uint8_t rolloutPolicy(Board* board, bool player){
+inline uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
-    board->generatePossibleMoves(player, possibleMoves, moveCount);
+    int tries = 0;
 
-    if (!moveCount){
-        cout << "fucked up\n";
-        uint8_t possibleMoves[256];
-        size_t moveCount = 0;
-        board->generatePossibleMoves(player, possibleMoves, moveCount);
+    board->generatePossibleMovesUnchecked(player, possibleMoves, moveCount);
+
+    while(tries < 3){
+        uint8_t move = possibleMoves[rand() % moveCount];
+
+        if(move >> 7){
+            uint8_t wallPlacement = move & 0b01111111;
+            if(!board->isValidWallPlacement(wallPlacement)){
+                tries++;
+                continue;
+            }
+        }
+        return move;
     }
-    return possibleMoves[rand() % moveCount];
+
+    // possibleMoves[0] is a pawn movement and thus definitely valid.
+    return possibleMoves[0];
 }
 
+
+
+uint8_t rolloutPolicy(Board* board, bool player){
+    return rolloutPolicy_fullRandom(board, player);
+}
 
 void backpropagate(Node* node, bool result){
     while(node){
@@ -227,7 +242,7 @@ int main(int argc, char const *argv[]){
 
     auto start = chrono::high_resolution_clock::now();
 
-    uint8_t move = mcts(board, 10000, whiteTurn);
+    uint8_t move = mcts(board, 50000, whiteTurn);
     cout << board.translateMove(move) << endl;
 
     auto end = chrono::high_resolution_clock::now();
