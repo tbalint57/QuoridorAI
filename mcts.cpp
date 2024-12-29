@@ -14,7 +14,7 @@ int number_of_tries = 0;
 class Node
 {
 public:
-    Node* children[256] = {nullptr};
+    Node** children = nullptr;
     Node* parent;
     bool player;
     bool expanded;
@@ -26,6 +26,9 @@ public:
         uint8_t possibleMoves[256];
         size_t moveCount = 0;
         board->generatePossibleMoves(this->player, possibleMoves, moveCount);
+
+        this->children = (Node**) malloc(256 * sizeof(Node*));
+
         for(int i = 0; i < moveCount; i++){
             uint8_t child = possibleMoves[i];
             this->children[child] = new Node(this, !this->player);
@@ -60,6 +63,10 @@ public:
 
 
     ~Node() {
+        if(!this->children){
+            return;
+        }
+
         for(int i = 0; i < 256; i++){
             if(this->children[i]){
                 delete this->children[i];
@@ -242,7 +249,7 @@ int main(int argc, char const *argv[]){
 
     auto start = chrono::high_resolution_clock::now();
 
-    uint8_t move = mcts(board, 50000, whiteTurn);
+    uint8_t move = mcts(board, 100000, whiteTurn);
     cout << board.translateMove(move) << endl;
 
     auto end = chrono::high_resolution_clock::now();
