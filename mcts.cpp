@@ -5,7 +5,7 @@
 #include <queue>
 #include "board.cpp"
 
-float MCTS_CONST = 1;
+float MCTS_CONST = sqrt(2);
 
 vector<uint8_t> movesExecuted = {};
 int number_of_retries = 0;
@@ -27,7 +27,13 @@ public:
         size_t moveCount = 0;
         board->generatePossibleMoves(this->player, possibleMoves, moveCount);
 
+        // Do not want to preallocate, as that would result in a ~100x memory usage.
         this->children = (Node**) malloc(256 * sizeof(Node*));
+
+        // Init to nullptr, so we avoid that nasty-nasty segfault.
+        for(int i = 0; i < 256; i++){
+            this->children[i] = nullptr;
+        }
 
         for(int i = 0; i < moveCount; i++){
             uint8_t child = possibleMoves[i];
@@ -107,7 +113,6 @@ uint8_t mcts(Board state, int rollouts, bool whiteTurn){
 
 Node* findLeaf(Node* node, Board* board){
     while(node->expanded){
-
         uint8_t bestMove = bestUCT(node);
 
         board->executeMove(bestMove, node->player);
@@ -174,11 +179,45 @@ inline uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
     return possibleMoves[0];
 }
 
+inline uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool player){
+    uint8_t possibleMoves[256];
+    size_t moveCount = 0;
+    int tries = 0;
+
+    int pawnMoves = board->generatePossibleMovesUnchecked(player, possibleMoves, moveCount);
+
+    bool pawnMove = possibleMoves[rand() % 2];
+    
+    if (pawnMove == 0){
+        uint8_t move = possibleMoves[rand() % pawnMoves];
+
+        return move;
+    }
+
+    // we can get a pawn move here as well, but I don't care!
+    while(tries < 3){
+        uint8_t move = possibleMoves[rand() % moveCount];
+
+        if(move >> 7){
+            uint8_t wallPlacement = move & 0b01111111;
+            if(!board->isValidWallPlacement(wallPlacement)){
+                tries++;
+                continue;
+            }
+        }
+        return move;
+    }
+
+    // possibleMoves[0] is a pawn movement and thus definitely valid.
+    return possibleMoves[0];
+}
+
 
 
 uint8_t rolloutPolicy(Board* board, bool player){
-    return rolloutPolicy_fullRandom(board, player);
+    return rolloutPolicy_halfProbabilityOfPawnMovement(board, player);
 }
+
 
 void backpropagate(Node* node, bool result){
     while(node){
@@ -198,12 +237,18 @@ uint8_t bestUCT(Node* node){
             continue;
         }
 
-        if(child->getValue(node->player) == -1){
+        float value = child->getValue(node->player);
+
+        if(value == -1){
             return move;
         }
 
-        if(child->getValue(node->player) > bestValue){
-            bestValue = child->getValue(node->player);
+        if(move < 127){
+            value = value + 0.05;
+        }
+
+        if(value > bestValue){
+            bestValue = value;
             bestMove = move;
         }
     }
@@ -216,6 +261,7 @@ uint8_t bestUCT(Node* node){
     return bestMove;
 }
 
+
 uint8_t mostVisitedMove(Node* node){
     int bestValue = -1;
     uint8_t bestMove = 0;
@@ -225,6 +271,8 @@ uint8_t mostVisitedMove(Node* node){
         if(!child){
             continue;
         }
+
+        // cout << (int) move << " - whiteWins: " << child->whiteWins << ",\t\tblackWins: " << child->blackWins << "\n";
 
         if(child->getValue(node->player) == -1){
             return move;
@@ -247,31 +295,33 @@ int main(int argc, char const *argv[]){
     bool whiteTurn = true;
 
 
-    auto start = chrono::high_resolution_clock::now();
+    // auto start = chrono::high_resolution_clock::now();
 
-    uint8_t move = mcts(board, 100000, whiteTurn);
-    cout << board.translateMove(move) << endl;
+    // uint8_t move = mcts(board, 100000, whiteTurn);
+    // cout << board.translateMove(move) << endl;
 
-    auto end = chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    cout << "Move made in " << duration.count() << " seconds" << endl;
+    // auto end = chrono::high_resolution_clock::now();
+    // std::chrono::duration<double> duration = end - start;
+    // cout << "Move made in " << duration.count() << " seconds" << endl;
 
-    // for(int i = 0; i < 100; i++){
-    //     auto start = chrono::high_resolution_clock::now();
+    for(int i = 0; i < 100; i++){
+        auto start = chrono::high_resolution_clock::now();
 
-    //     uint8_t move = mcts(board, 10000, whiteTurn);
-    //     cout << board.translateMove(move) << endl;
+        uint8_t move = mcts(board, 100000, whiteTurn);
+        cout << board.translateMove(move) << endl;
 
-    //     auto end = chrono::high_resolution_clock::now();
-    //     std::chrono::duration<double> duration = end - start;
-    //     cout << "Move made in " << duration.count() << " seconds" << endl;
+        auto end = chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end - start;
+        cout << "Move made in " << duration.count() << " seconds" << endl;
 
-    //     board.executeMove(move, whiteTurn);
-    //     if(board.getWinner()){
-    //         break;
-    //     }
-    //     whiteTurn = !whiteTurn;
-    // }
+        board.executeMove(move, whiteTurn);
+        if(board.getWinner()){
+            cout << "The winner is: " << board.getWinner() << endl;
+            break;
+        }
+        whiteTurn = !whiteTurn;
+    }
+    cout << "Simulation finished" << endl;
 }
 
 // lookup gcc profiler!!!

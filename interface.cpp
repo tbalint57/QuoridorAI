@@ -3,7 +3,7 @@
 #include <vector>
 #include <cstring>
 #include <cstdlib>
-#include "minimax.cpp"
+#include "mcts.cpp"
 using namespace std;
 
 
@@ -21,7 +21,7 @@ extern "C" {
     };
 
 
-    uint8_t calculateBestMove(Cell whitePawn, Cell blackPawn, Wall* walls, size_t length, int whiteWalls, int blackWalls, bool player, int depth){
+    uint8_t calculateBestMove(Cell whitePawn, Cell blackPawn, Wall* walls, size_t length, int whiteWalls, int blackWalls, bool player, int roullouts){
         vector<pair<bool, pair<int, int>>> wallsVector = {};
         for (size_t i = 0; i < length; i++){
             Wall wall = walls[i];
@@ -29,7 +29,7 @@ extern "C" {
         }
 
         Board game = Board({whitePawn.i, whitePawn.j}, {blackPawn.i, blackPawn.j}, wallsVector, whiteWalls, blackWalls);
-        return calculateBestMove(&game, depth, player);
+        return mcts(game, roullouts, player);
     }
 
 
@@ -41,12 +41,14 @@ extern "C" {
         }
 
         Board game = Board({whitePawn.i, whitePawn.j}, {blackPawn.i, blackPawn.j}, wallsVector, whiteWalls, blackWalls);
-        vector<uint8_t> possibleMoves = game.generatePossibleMoves(player);
+        uint8_t possibleMoves[256];
+        size_t moveCount = 0;
+        game.generatePossibleMoves(player, possibleMoves, moveCount);
         
-        *outputLength = possibleMoves.size();
+        *outputLength = moveCount;
 
         uint8_t* output = (uint8_t*)malloc(*outputLength * sizeof(uint8_t));
-        memcpy(output, possibleMoves.data(), *outputLength);
+        memcpy(output, possibleMoves, *outputLength);
 
         return output;
     }

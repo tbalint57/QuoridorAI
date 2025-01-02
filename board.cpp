@@ -41,9 +41,6 @@ class Board
     vector<uint8_t> neighbouringWalls[128] = {{}};
     uint8_t wallsTouchingSide[128] = {0};
 
-    vector<uint8_t> whitePath = {20, 36, 52, 68, 84, 100, 116, 132};
-    vector<uint8_t> blackPath = {116, 100, 84, 68, 52, 36, 20, 4};
-
     char winner = 0;
 
     bool dfs(bool player){
@@ -107,6 +104,69 @@ class Board
         }
 
         return foundRoute;
+    }
+
+
+    int bfs(bool player){
+        uint8_t startCell = player ? whitePawn : blackPawn;
+        queue<uint8_t> todo = {};
+        bool seen[137] = {false};
+        int depth[137] = {0};
+
+        todo.push(startCell);
+        seen[startCell] = true;
+
+        uint8_t curCell;
+        uint8_t neighbourCell;
+        bool foundRoute = false;
+
+        while (todo.size() > 0){
+            curCell = todo.front();
+            foundRoute = (player && curCell >= 128) || (!player && curCell <= 8);
+
+            if (foundRoute){
+                break;
+            }
+
+            // This is ugly, copy-paste is king...
+            if((curCell & 0xf) != 8 && !walledOffCells[curCell + RIGHT]){
+                neighbourCell = curCell + 1;
+                if (!seen[neighbourCell]){
+                    todo.push(neighbourCell);
+                    seen[neighbourCell] = true;
+                    depth[neighbourCell] = depth[curCell] + 1;
+                }
+            }
+
+            if((curCell & 0xf) != 0 && !walledOffCells[curCell + LEFT]){
+                neighbourCell = curCell - 1;
+                if (!seen[neighbourCell]){
+                    todo.push(neighbourCell);
+                    seen[neighbourCell] = true;
+                    depth[neighbourCell] = depth[curCell] + 1;
+                }
+            }
+
+            if(((curCell & 0xf0) >> 4) != 8 && !walledOffCells[curCell + UP]){
+                neighbourCell = curCell + 16;
+                if (!seen[neighbourCell]){
+                    todo.push(neighbourCell);
+                    seen[neighbourCell] = true;
+                    depth[neighbourCell] = depth[curCell] + 1;
+                }
+            }
+
+            if(((curCell & 0xf0) >> 4) != 0 && !walledOffCells[curCell + DOWN]){
+                neighbourCell = curCell - 16;
+                if (!seen[neighbourCell]){
+                    todo.push(neighbourCell);
+                    seen[neighbourCell] = true;
+                    depth[neighbourCell] = depth[curCell] + 1;
+                }
+            }
+            todo.pop();
+        }
+        return depth[curCell];
     }
 
 
@@ -332,6 +392,25 @@ class Board
     }
 
 
+    inline void addWallIfPlacementValid(uint8_t wallPlacement, uint8_t* possibleMoves, size_t& moveCount, bool checkValidity=true){
+        if (takenWallPlaces[wallPlacement]){
+            return;
+        }
+
+        if (isSafeWallPlacement(wallPlacement) || !checkValidity){
+            possibleMoves[moveCount] = 128 + wallPlacement;
+            moveCount++;
+            return;
+        }
+
+        if (isValidWallPlacement(wallPlacement)){
+            possibleMoves[moveCount] = 128 + wallPlacement;
+            moveCount++;
+            return;
+        }
+    }
+
+
     inline void generatePossibleWallPlacements(bool player, uint8_t* possibleMoves, size_t& moveCount, bool checkValidity=true){
         // check whether wall placements can be made
         if ((player && !whiteWalls) || (!player && !blackWalls)){
@@ -340,23 +419,106 @@ class Board
 
         // generates wall placements
         for(uint8_t wallPlacement = 0; wallPlacement < 0x80; wallPlacement++){
-            if (takenWallPlaces[wallPlacement]){
+            addWallIfPlacementValid(wallPlacement, possibleMoves, moveCount, checkValidity);
+        }
+
+    }
+
+
+    void generateProbableWallPlacements(bool player, uint8_t* possibleMoves, size_t& moveCount, bool checkValidity=true){
+        // check whether wall placements can be made
+        if ((player && !whiteWalls) || (!player && !blackWalls)){
+            return;
+        }
+
+        // we consider the following wall placements probable:
+        // 1. Right next to opponent pawn
+        // 2. Next to existing wall
+        // 3. Behind player's pawn in opponent pawn's column
+
+        uint8_t opponentPawn = player ? blackPawn : whitePawn;
+        uint8_t iOpponentPawn = opponentPawn >> 4;
+        uint8_t jOpponentPawn = opponentPawn & 0x0f;
+
+        uint8_t playerPawn = player ? whitePawn : blackPawn;
+        uint8_t iPlayerPawn = playerPawn >> 4;
+        uint8_t jPlayerPawn = playerPawn & 0x0f;
+        
+        // 1.
+        uint8_t wallPlacementsNextToOpponentPawn[8] = {
+            iOpponentPawn * 8 + jOpponentPawn,
+            iOpponentPawn * 8 + jOpponentPawn + 64,
+            iOpponentPawn * 8 + (jOpponentPawn - 1),
+            iOpponentPawn * 8 + (jOpponentPawn - 1) + 64,
+            (iOpponentPawn - 1) * 8 + jOpponentPawn,
+            (iOpponentPawn - 1) * 8 + jOpponentPawn + 64,
+            (iOpponentPawn - 1) * 8 + (jOpponentPawn - 1),
+            (iOpponentPawn - 1) * 8 + (jOpponentPawn - 1) + 64
+        };
+
+        for(int i = 0; i < 8; i++){
+            uint8_t wallPlacement = wallPlacementsNextToOpponentPawn[i];
+
+            if (wallPlacement > 127){
                 continue;
             }
 
-            if (isSafeWallPlacement(wallPlacement) || !checkValidity){
-                possibleMoves[moveCount] = 128 + wallPlacement;
-                moveCount++;
-                continue;
-            }
+            addWallIfPlacementValid(wallPlacement, possibleMoves, moveCount, checkValidity);
+        }
 
-            if (isValidWallPlacement(wallPlacement)){
-                possibleMoves[moveCount] = 128 + wallPlacement;
-                moveCount++;
-                continue;
+        // 2.
+        for(uint8_t wallPlacement = 0; wallPlacement < 0x80; wallPlacement++){
+            if (hasNeighbouringWallPlacement(wallPlacement)){
+                addWallIfPlacementValid(wallPlacement, possibleMoves, moveCount, checkValidity);
             }
         }
 
+        // 3.
+        for(int i = 0; i < playerPawn; i++){
+            uint8_t wallPlacement = 8 * i + jOpponentPawn + 64;
+            addWallIfPlacementValid(wallPlacement, possibleMoves, moveCount, checkValidity);
+
+            wallPlacement = 8 * i + jOpponentPawn + 64 - 1;
+            addWallIfPlacementValid(wallPlacement, possibleMoves, moveCount, checkValidity);
+        }
+
+
+    }
+
+
+    inline bool hasNeighbouringWallPlacement(uint8_t wallPlacement){
+        bool isHorizontal = wallPlacement & 0b01000000;
+        uint8_t neighbouringWallPlacements[8];
+
+        if (isHorizontal) {
+            neighbouringWallPlacements[0] = wallPlacement + 2;
+            neighbouringWallPlacements[1] = wallPlacement - 2;
+            neighbouringWallPlacements[2] = wallPlacement - 64 + 7;
+            neighbouringWallPlacements[3] = wallPlacement - 64 + 8;
+            neighbouringWallPlacements[4] = wallPlacement - 64 + 9;
+            neighbouringWallPlacements[5] = wallPlacement - 64 - 7;
+            neighbouringWallPlacements[6] = wallPlacement - 64 - 8;
+            neighbouringWallPlacements[7] = wallPlacement - 64 - 9;
+        } else {
+            neighbouringWallPlacements[0] = wallPlacement + 16;
+            neighbouringWallPlacements[1] = wallPlacement - 16;
+            neighbouringWallPlacements[2] = wallPlacement + 64 - 7;
+            neighbouringWallPlacements[3] = wallPlacement + 64 + 1;
+            neighbouringWallPlacements[4] = wallPlacement + 64 + 9;
+            neighbouringWallPlacements[5] = wallPlacement + 64 - 9;
+            neighbouringWallPlacements[6] = wallPlacement + 64 - 1;
+            neighbouringWallPlacements[7] = wallPlacement + 64 + 7;
+        }
+
+        for (int i = 0; i < 8; i++){
+            uint8_t wallPlacement = neighbouringWallPlacements[i];
+
+            if (wallPlacement < 128 && wallsOnBoard[wallPlacement]){
+                return true;
+            }
+        }
+
+        return false;
     }
 
 
@@ -450,15 +612,37 @@ class Board
      * @param player true: white, false: black
      * @return possible moves in a vector
      */
-    void generatePossibleMoves(bool player, uint8_t* possibleMoves, size_t& moveCount){        
+    int generatePossibleMoves(bool player, uint8_t* possibleMoves, size_t& moveCount){        
         generatePossiblePawnMoves(player, possibleMoves, moveCount);
+        int pawnMoves =  moveCount;
         generatePossibleWallPlacements(player, possibleMoves, moveCount);
+        return pawnMoves;
     }
 
-
-    void generatePossibleMovesUnchecked(bool player, uint8_t* possibleMoves, size_t& moveCount){        
+    /**
+     * Generate possible move for given player, this may include invalid wall placements
+     * 
+     * @param player true: white, false: black
+     * @return possible moves in a vector
+     */
+    int generatePossibleMovesUnchecked(bool player, uint8_t* possibleMoves, size_t& moveCount){        
         generatePossiblePawnMoves(player, possibleMoves, moveCount);
+        int pawnMoves =  moveCount;
         generatePossibleWallPlacements(player, possibleMoves, moveCount, false);
+        return pawnMoves;
+    }
+
+    /**
+     * Generate probable move for given player, this may include invalid wall placements
+     * 
+     * @param player true: white, false: black
+     * @return possible moves in a vector
+     */
+    int generateProbableMovesUnchecked(bool player, uint8_t* possibleMoves, size_t& moveCount){        
+        generatePossiblePawnMoves(player, possibleMoves, moveCount);
+        int pawnMoves =  moveCount;
+        generatePossibleWallPlacements(player, possibleMoves, moveCount, false);
+        return pawnMoves;
     }
 
 
@@ -467,61 +651,61 @@ class Board
      * 
      * @return evaluation value
      */
-    float evaluate(){
-        if(winner == 'w'){
-            return 1000.0f;
-        }
-
-        if(winner == 'b'){
-            return -1000.0f;
-        }
-
-        float whitePathLength = (float) whitePath.size();
-        float blackPathLength = (float) blackPath.size();
-
-        float whiteWallCount = (float) whiteWalls;
-        float blackWallCount = (float) blackWalls;
-
-        float numberOfWallsAheadWhite = 0.0f;
-        int iWhite = (whitePawn & 0xf0) >> 4;
-        for(int i = iWhite; i < 8; i++){
-            for(int j = 0; j < 8; j++){
-                if(wallsOnBoard[8 * i + j] || wallsOnBoard[64 + 8 * i + j]){
-                    numberOfWallsAheadWhite++;
-                }
-            }
-        }
-        float numberOfWallsAheadBlack = 0.0f;
-        int iBlack = (whitePawn & 0xf0) >> 4;
-        for(int i = 0; i < iBlack; i++){
-            for(int j = 0; j < 8; j++){
-                if(wallsOnBoard[8 * i + j] || wallsOnBoard[64 + 8 * i + j]){
-                    numberOfWallsAheadBlack++;
-                }
-            }
-        }
-        
-        uint8_t whiteNeighbours[4];
-        size_t whiteNeighbourCount = 0;
-        getNeighbours(whitePawn, whiteNeighbours, whiteNeighbourCount);
-        
-        uint8_t blackNeighbours[4];
-        size_t blackNeighbourCount = 0;
-        getNeighbours(blackPawn, blackNeighbours, blackNeighbourCount);
-        
-        float numberOfWhiteNeighbours = (float) whiteNeighbourCount;
-        float numberOfBlackNeighbours = (float) blackNeighbourCount;
-
-        float heuristics[8] = {whitePathLength, blackPathLength, whiteWallCount, blackWallCount, numberOfWallsAheadWhite, numberOfWallsAheadBlack, numberOfWhiteNeighbours, numberOfBlackNeighbours};
-        float weights[8] = {-1.0f, 1.0f, 0.5f, -0.5f, -0.2f, 0.2f, 0.1f, -0.1f};
-
-        float value = 0.0f;
-        for(int i = 0; i < 8; i++){
-            value += weights[i] * heuristics[i];
-        }
-
-        return value;
-    }
+    // float evaluate(){
+    //     if(winner == 'w'){
+    //         return 1000.0f;
+    //     }
+    //
+    //     if(winner == 'b'){
+    //         return -1000.0f;
+    //     }
+    //
+    //     float whitePathLength = (float) whitePath.size();
+    //     float blackPathLength = (float) blackPath.size();
+    //
+    //     float whiteWallCount = (float) whiteWalls;
+    //     float blackWallCount = (float) blackWalls;
+    //
+    //     float numberOfWallsAheadWhite = 0.0f;
+    //     int iWhite = (whitePawn & 0xf0) >> 4;
+    //     for(int i = iWhite; i < 8; i++){
+    //         for(int j = 0; j < 8; j++){
+    //             if(wallsOnBoard[8 * i + j] || wallsOnBoard[64 + 8 * i + j]){
+    //                 numberOfWallsAheadWhite++;
+    //             }
+    //         }
+    //     }
+    //     float numberOfWallsAheadBlack = 0.0f;
+    //     int iBlack = (whitePawn & 0xf0) >> 4;
+    //     for(int i = 0; i < iBlack; i++){
+    //         for(int j = 0; j < 8; j++){
+    //             if(wallsOnBoard[8 * i + j] || wallsOnBoard[64 + 8 * i + j]){
+    //                 numberOfWallsAheadBlack++;
+    //             }
+    //         }
+    //     }
+    //  
+    //     uint8_t whiteNeighbours[4];
+    //     size_t whiteNeighbourCount = 0;
+    //     getNeighbours(whitePawn, whiteNeighbours, whiteNeighbourCount);
+    //     
+    //     uint8_t blackNeighbours[4];
+    //     size_t blackNeighbourCount = 0;
+    //     getNeighbours(blackPawn, blackNeighbours, blackNeighbourCount);
+    //        
+    //     float numberOfWhiteNeighbours = (float) whiteNeighbourCount;
+    //     float numberOfBlackNeighbours = (float) blackNeighbourCount;
+    //
+    //     float heuristics[8] = {whitePathLength, blackPathLength, whiteWallCount, blackWallCount, numberOfWallsAheadWhite, numberOfWallsAheadBlack, numberOfWhiteNeighbours, numberOfBlackNeighbours};
+    //     float weights[8] = {-1.0f, 1.0f, 0.5f, -0.5f, -0.2f, 0.2f, 0.1f, -0.1f};
+    //
+    //     float value = 0.0f;
+    //     for(int i = 0; i < 8; i++){
+    //         value += weights[i] * heuristics[i];
+    //     }
+    //
+    //     return value;
+    // }
 
 
     /**
@@ -620,11 +804,13 @@ class Board
 
 
     bool whiteCloser(bool player){
-        if(this->whitePath.size() > this->blackPath.size()){
+        int whitePathLength = bfs(true);
+        int blackPathLength = bfs(false);
+        if(whitePathLength > blackPathLength){
             return false;
         }
 
-        if(this->whitePath.size() < this->blackPath.size()){
+        if(whitePathLength < blackPathLength){
             return true;
         }
 
@@ -640,10 +826,8 @@ class Board
         bool wallsOnBoard = equal(begin(this->wallsOnBoard), end(this->wallsOnBoard), begin(other.wallsOnBoard));
         bool takenWallPlaces = equal(begin(this->takenWallPlaces), end(this->takenWallPlaces), begin(other.takenWallPlaces));
         bool walledOffCells = equal(begin(this->walledOffCells), end(this->walledOffCells), begin(other.walledOffCells));
-        bool whitePath = this->whitePath.size() == other.whitePath.size();
-        bool blackPath = this->blackPath.size() == other.blackPath.size();
         bool winner = this->winner == other.winner;
-        return whitePawn && blackPawn && whiteWalls && blackWalls && wallsOnBoard && takenWallPlaces && walledOffCells && whitePath && blackPath && winner;
+        return whitePawn && blackPawn && whiteWalls && blackWalls && wallsOnBoard && takenWallPlaces && walledOffCells && winner;
     }
 
 
@@ -706,9 +890,6 @@ class Board
         this->wallsOnBoard[128] = {false};
         this->takenWallPlaces[128] = {false};
         this->walledOffCells[904] = {false};
-
-        this->whitePath = {20, 36, 52, 68, 84, 100, 116, 132};
-        this->blackPath = {116, 100, 84, 68, 52, 36, 20, 4};
 
         this->whiteWalls = 10;
         this->blackWalls = 10;
