@@ -446,14 +446,14 @@ class Board
         
         // 1.
         uint8_t wallPlacementsNextToOpponentPawn[8] = {
-            iOpponentPawn * 8 + jOpponentPawn,
-            iOpponentPawn * 8 + jOpponentPawn + 64,
-            iOpponentPawn * 8 + (jOpponentPawn - 1),
-            iOpponentPawn * 8 + (jOpponentPawn - 1) + 64,
-            (iOpponentPawn - 1) * 8 + jOpponentPawn,
-            (iOpponentPawn - 1) * 8 + jOpponentPawn + 64,
-            (iOpponentPawn - 1) * 8 + (jOpponentPawn - 1),
-            (iOpponentPawn - 1) * 8 + (jOpponentPawn - 1) + 64
+            (uint8_t)((iOpponentPawn * 8) + jOpponentPawn),
+            (uint8_t)(iOpponentPawn * 8 + jOpponentPawn + 64),
+            (uint8_t)(iOpponentPawn * 8 + (jOpponentPawn - 1)),
+            (uint8_t)(iOpponentPawn * 8 + (jOpponentPawn - 1) + 64),
+            (uint8_t)((iOpponentPawn - 1) * 8 + jOpponentPawn),
+            (uint8_t)((iOpponentPawn - 1) * 8 + jOpponentPawn + 64),
+            (uint8_t)((iOpponentPawn - 1) * 8 + (jOpponentPawn - 1)),
+            (uint8_t)((iOpponentPawn - 1) * 8 + (jOpponentPawn - 1) + 64)
         };
 
         for(int i = 0; i < 8; i++){
@@ -876,8 +876,8 @@ class Board
             this->walledOffCells[i] = other.walledOffCells[i];
         }
 
-        this->whiteWalls = whiteWalls;
-        this->blackWalls = blackWalls;
+        this->whiteWalls = other.whiteWalls;
+        this->blackWalls = other.blackWalls;
 
         this->winner = other.winner;
     }
