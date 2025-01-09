@@ -12,3 +12,4 @@ savedGames/*
 .*
 main
 mcts
+foreign_models

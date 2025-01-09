@@ -20,6 +20,7 @@ public:
     bool expanded;
     int whiteWins;
     int blackWins;
+    int heuristicValue;
     int depth;
 
     void expandNode(Board* board){
@@ -37,7 +38,10 @@ public:
 
         for(int i = 0; i < moveCount; i++){
             uint8_t child = possibleMoves[i];
-            this->children[child] = new Node(this, !this->player);
+            // Prioritise pawn moves a bit
+            float childHeuristicValue = board->calculateHeuristicForMove(child, this->player);
+
+            this->children[child] = new Node(this, !this->player, childHeuristicValue);
         }
         this->expanded = true;
     }
@@ -54,16 +58,17 @@ public:
 
         float wins = (float)(player ? whiteWins : blackWins);
 
-        return wins / n_node + MCTS_CONST * sqrt(log(n_parent) / n_node);
+        return (this->heuristicValue + wins) / n_node + MCTS_CONST * sqrt(log(n_parent) / n_node);
     }
 
 
-    Node(Node* parent, bool player){
+    Node(Node* parent, bool player, float heuristicValue){
         this->parent = parent;
         this->player = player;
         this->expanded = false;
         this->whiteWins = 0;
         this->blackWins = 0;
+        this->heuristicValue = heuristicValue;
         this->depth = parent ? parent->depth + 1 : 0;
     }
 
@@ -78,8 +83,9 @@ public:
                 delete this->children[i];
             }
         }
-    }
 
+        free(this->children); // Free the array of child pointers
+    }
 };
 
 
@@ -92,7 +98,7 @@ uint8_t mostVisitedMove(Node* node);
 
 
 uint8_t mcts(Board state, int rollouts, bool whiteTurn){
-    Node *root = new Node(nullptr, whiteTurn);
+    Node *root = new Node(nullptr, whiteTurn, 0);
     Board board = Board(state);
 
     while(rollouts > 0){
@@ -106,7 +112,7 @@ uint8_t mcts(Board state, int rollouts, bool whiteTurn){
     }
 
     uint8_t bestMove = mostVisitedMove(root);
-    delete(root);    
+    delete(root);
     return bestMove;
 }
 
@@ -117,7 +123,7 @@ Node* findLeaf(Node* node, Board* board){
 
         board->executeMove(bestMove, node->player);
         movesExecuted.push_back(bestMove);
-        
+
         node = node->children[bestMove];
     }
 
@@ -179,6 +185,7 @@ inline uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
     return possibleMoves[0];
 }
 
+
 inline uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
@@ -187,7 +194,41 @@ inline uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool pl
     int pawnMoves = board->generatePossibleMovesUnchecked(player, possibleMoves, moveCount);
 
     bool pawnMove = possibleMoves[rand() % 2];
-    
+
+    if (pawnMove == 0){
+        uint8_t move = possibleMoves[rand() % pawnMoves];
+
+        return move;
+    }
+
+    // we can get a pawn move here as well, but I don't care!
+    while(tries < 3){
+        uint8_t move = possibleMoves[rand() % moveCount];
+
+        if(move >> 7){
+            uint8_t wallPlacement = move & 0b01111111;
+            if(!board->isValidWallPlacement(wallPlacement)){
+                tries++;
+                continue;
+            }
+        }
+        return move;
+    }
+
+    // possibleMoves[0] is a pawn movement and thus definitely valid.
+    return possibleMoves[0];
+}
+
+
+inline uint8_t rolloutPolicy_probableNextMoveWithHalfProbabilityOfPawnMovement(Board* board, bool player){
+    uint8_t possibleMoves[256];
+    size_t moveCount = 0;
+    int tries = 0;
+
+    int pawnMoves = board->generateProbableMovesUnchecked(player, possibleMoves, moveCount);
+
+    bool pawnMove = possibleMoves[rand() % 2];
+
     if (pawnMove == 0){
         uint8_t move = possibleMoves[rand() % pawnMoves];
 
@@ -215,7 +256,7 @@ inline uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool pl
 
 
 uint8_t rolloutPolicy(Board* board, bool player){
-    return rolloutPolicy_halfProbabilityOfPawnMovement(board, player);
+    return rolloutPolicy_probableNextMoveWithHalfProbabilityOfPawnMovement(board, player);
 }
 
 
@@ -241,10 +282,6 @@ uint8_t bestUCT(Node* node){
 
         if(value == -1){
             return move;
-        }
-
-        if(move < 127){
-            value = value + 0.05;
         }
 
         if(value > bestValue){
@@ -285,43 +322,3 @@ uint8_t mostVisitedMove(Node* node){
     }
     return bestMove;
 }
-
-#include <chrono> 
-
-int main(int argc, char const *argv[]){
-    srand (time(NULL));
-
-    Board board = Board();
-    bool whiteTurn = true;
-
-
-    // auto start = chrono::high_resolution_clock::now();
-
-    // uint8_t move = mcts(board, 100000, whiteTurn);
-    // cout << board.translateMove(move) << endl;
-
-    // auto end = chrono::high_resolution_clock::now();
-    // std::chrono::duration<double> duration = end - start;
-    // cout << "Move made in " << duration.count() << " seconds" << endl;
-
-    for(int i = 0; i < 100; i++){
-        auto start = chrono::high_resolution_clock::now();
-
-        uint8_t move = mcts(board, 100000, whiteTurn);
-        cout << board.translateMove(move) << endl;
-
-        auto end = chrono::high_resolution_clock::now();
-        std::chrono::duration<double> duration = end - start;
-        cout << "Move made in " << duration.count() << " seconds" << endl;
-
-        board.executeMove(move, whiteTurn);
-        if(board.getWinner()){
-            cout << "The winner is: " << board.getWinner() << endl;
-            break;
-        }
-        whiteTurn = !whiteTurn;
-    }
-    cout << "Simulation finished" << endl;
-}
-
-// lookup gcc profiler!!!
