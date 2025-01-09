@@ -32,7 +32,9 @@ BLACK_COLOR = (73, 21, 31)
 WALL_COLOR = (246, 173, 88)
 
 # Load images
-images = {image[:-4]: pygame.image.load("images/" + image) for image in os.listdir("images")}
+own_dir = os.path.dirname(os.path.abspath(__file__))
+images_path = os.path.join(own_dir, 'images/')
+images = {image[:-4]: pygame.image.load(images_path + image) for image in os.listdir(images_path)}
 
 
 def cellToRealCoordinates(row, col):
@@ -41,38 +43,36 @@ def cellToRealCoordinates(row, col):
     return x, y
 
 
-def spawnWallPlacment(position, move):
-    row, col = position
-    row = 8 - row
-    col += 1
-    x, y = cellToRealCoordinates(row, col)
-    button = RoundButton((x - SPACING / 2, y - SPACING / 2), SPACING, move)
-    return button
-
-
-def spawnPawnMove(position, move):
-    col, row = position
-    col = 8 - col
-
-    x = col * (CELL_SIZE + SPACING)
-    y = row * (CELL_SIZE + SPACING)
-
-    return RectButton(y, x, CELL_SIZE, CELL_SIZE, move)
-
-
-def spawnHorizontalWallButton(clicked):
-    return RectButton(CELL_SIZE * 9.5 + SPACING * 8, 3 * CELL_SIZE, 2 * CELL_SIZE + SPACING, SPACING, (-1, -1), (WALL_COLOR[0] / 4, WALL_COLOR[1] / 4, WALL_COLOR[2] / 4), clicked)
-
-
-def spawnVerticalWallButton(clicked):
-    return RectButton(CELL_SIZE * 10.5 + SPACING * 8, 4 * CELL_SIZE, SPACING, 2 * CELL_SIZE + SPACING, (-1, -1), (WALL_COLOR[0] / 4, WALL_COLOR[1] / 4, WALL_COLOR[2] / 4), clicked)
-
-
 def spawnImageButton(image, center, action):
     return ImageButton(center, image, action)
 
 
 def drawBoard(gameState):
+    def drawPawn(position, color=(230, 200, 200)):
+        row, col = position
+        row = 8 - row
+        x, y = cellToRealCoordinates(row, col)
+        
+        center_x = x + CELL_SIZE // 2
+        center_y = y + CELL_SIZE // 2
+        
+        pygame.draw.circle(screen, color, (center_x, center_y), CELL_SIZE // 3)
+
+    def drawWalls(walls):
+
+        def drawWall(wall, color = WALL_COLOR):
+            isHorizontal, row, col = wall
+            row = 8 - row
+            x, y = cellToRealCoordinates(row, col)
+
+            if isHorizontal:
+                pygame.draw.rect(screen, color, (x, y - SPACING, 2 * CELL_SIZE + SPACING, SPACING))
+            if not isHorizontal:
+                pygame.draw.rect(screen, color, (x + CELL_SIZE, y - CELL_SIZE - SPACING, SPACING, 2 * CELL_SIZE + SPACING))
+                
+        for wall in walls:
+            drawWall(wall)
+
     screen.fill(BG_COLOR)
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
@@ -86,58 +86,54 @@ def drawBoard(gameState):
     drawWalls(gameState.wallsOnBoard)
 
 
-def drawPawn(position, color=(230, 200, 200)):
-    row, col = position
-    row = 8 - row
-    x, y = cellToRealCoordinates(row, col)
-    
-    center_x = x + CELL_SIZE // 2
-    center_y = y + CELL_SIZE // 2
-    
-    pygame.draw.circle(screen, color, (center_x, center_y), CELL_SIZE // 3)
-
-
-def drawWalls(walls):
-    for wall in walls:
-        drawWall(wall)
-
-
-def drawWall(wall, color = WALL_COLOR):
-    isHorizontal, row, col = wall
-    row = 8 - row
-    x, y = cellToRealCoordinates(row, col)
-
-    if isHorizontal:
-        pygame.draw.rect(screen, color, (x, y - SPACING, 2 * CELL_SIZE + SPACING, SPACING))
-    if not isHorizontal:
-        pygame.draw.rect(screen, color, (x + CELL_SIZE, y - CELL_SIZE - SPACING, SPACING, 2 * CELL_SIZE + SPACING))
-
-
-def highlightPossibleMoves(gameState, player, wall = None):
-    xPawn, yPawn = gameState.whitePawn if player else gameState.blackPawn
-    possibleMoves = []
-    for move in gameState.generatePossibleMoves(player):
-        isWall, position, isHorizontal = move
-
-        if not isWall:
-            xMove, yMove = position
-            possibleMoves.append(spawnPawnMove((xPawn + xMove, yPawn + yMove), move))
-        
-        if isWall and wall == "horizontal" and isHorizontal:
-            possibleMoves.append(spawnWallPlacment(position, move))
-        
-        if isWall and wall == "vertical" and not isHorizontal:
-            possibleMoves.append(spawnWallPlacment(position, move))
-
-    return possibleMoves
-
-
 def getMoveAI(board):
     moveChar = calculateBestMove(board.gameState, board.whiteTurn)
     return Game.translateMove(moveChar)
 
 
 def getMovePlayer(board):
+    def highlightPossibleMoves(gameState, player, wall = None):
+
+        def spawnPawnMove(position, move):
+            col, row = position
+            col = 8 - col
+
+            x = col * (CELL_SIZE + SPACING)
+            y = row * (CELL_SIZE + SPACING)
+
+            return RectButton(y, x, CELL_SIZE, CELL_SIZE, move)
+
+        def spawnWallPlacment(position, move):
+            row, col = position
+            row = 8 - row
+            col += 1
+            x, y = cellToRealCoordinates(row, col)
+            button = RoundButton((x - SPACING / 2, y - SPACING / 2), SPACING, move)
+            return button
+        
+        xPawn, yPawn = gameState.whitePawn if player else gameState.blackPawn
+        possibleMoves = []
+        for move in gameState.generatePossibleMoves(player):
+            isWall, position, isHorizontal = move
+
+            if not isWall:
+                xMove, yMove = position
+                possibleMoves.append(spawnPawnMove((xPawn + xMove, yPawn + yMove), move))
+            
+            if isWall and wall == "horizontal" and isHorizontal:
+                possibleMoves.append(spawnWallPlacment(position, move))
+            
+            if isWall and wall == "vertical" and not isHorizontal:
+                possibleMoves.append(spawnWallPlacment(position, move))
+
+        return possibleMoves
+
+    def spawnHorizontalWallButton(clicked):
+        return RectButton(CELL_SIZE * 9.5 + SPACING * 8, 3 * CELL_SIZE, 2 * CELL_SIZE + SPACING, SPACING, (-1, -1), (WALL_COLOR[0] / 4, WALL_COLOR[1] / 4, WALL_COLOR[2] / 4), clicked)
+
+    def spawnVerticalWallButton(clicked):
+        return RectButton(CELL_SIZE * 10.5 + SPACING * 8, 4 * CELL_SIZE, SPACING, 2 * CELL_SIZE + SPACING, (-1, -1), (WALL_COLOR[0] / 4, WALL_COLOR[1] / 4, WALL_COLOR[2] / 4), clicked)
+    
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
