@@ -1,7 +1,10 @@
+import os
 import ctypes
 from ctypes import *
 
-lib = ctypes.CDLL('./interface.so') 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+lib_path = os.path.join(script_dir, '../cpp/interface.so')
+lib = ctypes.CDLL(lib_path)
 
 class Cell(Structure):
     _fields_ = [("i", c_int), ("j", c_int)]
