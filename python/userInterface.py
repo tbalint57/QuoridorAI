@@ -52,10 +52,10 @@ def drawBoard(gameState):
         row, col = position
         row = 8 - row
         x, y = cellToRealCoordinates(row, col)
-        
+
         center_x = x + CELL_SIZE // 2
         center_y = y + CELL_SIZE // 2
-        
+
         pygame.draw.circle(screen, color, (center_x, center_y), CELL_SIZE // 3)
 
     def drawWalls(walls):
@@ -69,21 +69,36 @@ def drawBoard(gameState):
                 pygame.draw.rect(screen, color, (x, y - SPACING, 2 * CELL_SIZE + SPACING, SPACING))
             if not isHorizontal:
                 pygame.draw.rect(screen, color, (x + CELL_SIZE, y - CELL_SIZE - SPACING, SPACING, 2 * CELL_SIZE + SPACING))
-                
+
         for wall in walls:
             drawWall(wall)
 
+    def drawText(text, position, color=(255, 255, 255)):
+        font = pygame.font.Font(None, 36)  # Set font and size
+        textSurface = font.render(text, True, color)
+        screen.blit(textSurface, position)
+
     screen.fill(BG_COLOR)
+
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
             x = col * (CELL_SIZE + SPACING)
             y = row * (CELL_SIZE + SPACING)
 
             pygame.draw.rect(screen, CELL_COLOR, (x, y, CELL_SIZE, CELL_SIZE))
-    
+
     drawPawn(gameState.whitePawn, WHITE_COLOR)
     drawPawn(gameState.blackPawn, BLACK_COLOR)
     drawWalls(gameState.wallsOnBoard)
+
+    # Display wall counts
+    whiteWallsText = f"White Walls: {gameState.whiteWalls}"
+    blackWallsText = f"Black Walls: {gameState.blackWalls}"
+    whiteWallsPos = (screen.get_width() - 200, screen.get_height() - 50)
+    blackWallsPos = (screen.get_width() - 200, 20)
+
+    drawText(whiteWallsText, whiteWallsPos)
+    drawText(blackWallsText, blackWallsPos)
 
 
 def getMoveAI(board):
@@ -287,7 +302,6 @@ def saveGame():
     shutil.copy("record.txt", saveFile)
 
     homePage()
-
 
 
 homePage()

@@ -2,8 +2,8 @@ import os
 import ctypes
 from ctypes import *
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(script_dir, '../cpp/interface.so')
+own_dir = os.path.dirname(os.path.abspath(__file__))
+lib_path = os.path.join(own_dir, '../cpp/interface.so')
 lib = ctypes.CDLL(lib_path)
 
 class Cell(Structure):
