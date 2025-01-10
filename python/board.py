@@ -8,13 +8,15 @@ class Board:
                  isVerticalPressed: bool = False, 
                  gameState: Game = Game(), 
                  whiteTurn: bool = True, 
-                 moves: List[Tuple[bool, Tuple[int, int], bool]] = []):
+                 moves: List[Tuple[bool, Tuple[int, int], bool]] = [],
+                 currentMove: int = 0):
         
         self.isHorizontalPressed: bool = isHorizontalPressed
         self.isVerticalPressed: bool = isVerticalPressed
         self.gameState: Game = gameState
         self.whiteTurn: bool = whiteTurn
         self.moves: List[Tuple[bool, Tuple[int, int], bool]] = moves
+        self.currentMove = currentMove
 
     
     def reset(self):
@@ -23,8 +25,6 @@ class Board:
         self.gameState = Game((0, 4), (8, 4), 10, 10, [], "")
         self.whiteTurn = True
         self.moves = []
-
-
 
     
     def pressVertical(self):
@@ -37,13 +37,11 @@ class Board:
         self.isVerticalPressed = False
 
 
-    def executeMove(self, move: Tuple[bool, Tuple[int, int], bool], toAppend:bool=True):
+    def executeMove(self, move: Tuple[bool, Tuple[int, int], bool]):
         self.gameState.executeMove(move, self.whiteTurn) 
         self.isHorizontalPressed = False
         self.isVerticalPressed = False
         self.whiteTurn = not self.whiteTurn
-        if toAppend:
-            self.moves.append((move, self.whiteTurn))
 
 
     def getWallDirection(self):

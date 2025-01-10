@@ -8,7 +8,7 @@ interface.so
 __pycache__
 test.py
 record.txt
-savedGames/*
+python/savedGames/*
 .*
 main
 mcts

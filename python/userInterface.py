@@ -181,17 +181,97 @@ def getMovePlayer(board):
                 return moveButton.move
 
         pygame.display.flip()
+        
+
+def getMoveSpectate(board: Board):
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                move = board.moves[board.currentMove]
+                board.currentMove += 1
+                return move
+
+
+def selectGameSave():
+    font = pygame.font.Font(None, 36)
+    save_path = os.path.join(own_dir, 'savedGames/')
+
+    def get_save_files():
+        return [f for f in os.listdir(save_path) if os.path.isfile(os.path.join(save_path, f))]
+
+    def render_save_files(save_files, selected_index, start_index, visible_count = 15):
+        screen.fill(BG_COLOR)
+        title_text = font.render("Select a Save File", True, WHITE_COLOR)
+        screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 20))
+        
+        # Render only the visible portion of the save files
+        for i in range(visible_count):
+            if start_index + i < len(save_files):
+                save_file = save_files[start_index + i]
+                color = BLACK_COLOR if start_index + i == selected_index else WHITE_COLOR
+                text = font.render(save_file, True, color)
+                screen.blit(text, (50, 100 + i * 40))
+        
+        pygame.display.flip()
+
+    def selector():
+        clock = pygame.time.Clock()
+        running = True
+        save_files = get_save_files()
+        selected_index = 0
+        start_index = 0
+        visible_count = 18
+
+        while running:
+            render_save_files(save_files, selected_index, start_index, visible_count)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP:
+                        if selected_index > 0:
+                            selected_index -= 1
+                            if selected_index < start_index:
+                                start_index -= 1
+
+                    elif event.key == pygame.K_DOWN:
+                        if selected_index < len(save_files) - 1:
+                            selected_index += 1
+                            # Adjust start_index if needed
+                            if selected_index >= start_index + visible_count:
+                                start_index += 1
+
+                    elif event.key == pygame.K_RETURN:
+                        print(f"Selected save file: {os.path.join(save_path, save_files[selected_index])}")
+                        return os.path.join(save_path, save_files[selected_index])
+                    
+                    elif event.key == pygame.K_ESCAPE:
+                        running = False
+
+            clock.tick(30)
+
+    return selector()
 
 
 def play(moveFunctions):
     time.sleep(1)
     print("play")
 
-    if moveFunctions == None:
-        spectateGame()
-
     board = Board()
     board.reset()
+
+    if moveFunctions == None:
+        gameSave = selectGameSave()
+        print(f"gameSave: {gameSave}")
+        with open(gameSave, 'r') as saveFile:
+            for line in saveFile: 
+                board.moves.append(Game.translateMove(int(line.strip())))
+            
+
+        moveFunctions = (getMoveSpectate, getMoveSpectate)
+
     gameRecord = open("record.txt", "w")
     running = True
 
@@ -199,6 +279,7 @@ def play(moveFunctions):
 
     while running:
         drawBoard(board.gameState)
+        pygame.display.flip()
 
         if board.whiteTurn:
             move = whiteMoveFunc(board)
@@ -209,15 +290,13 @@ def play(moveFunctions):
         board.executeMove(move)
         running = board.gameState.winner == ""
 
-        gameRecord.write(str(Game.compressMove(move)))
+        print(str(Game.compressMove(move)))
+        gameRecord.write(str(Game.compressMove(move)) + "\n")
         drawBoard(board.gameState)
         pygame.display.flip()
     
+    gameRecord.close()
     endOfGamePage(board.gameState.winner)
-        
-
-def spectateGame():
-    pass
 
 
 def homePage():
@@ -262,10 +341,6 @@ def quit():
     sys.exit()
 
 
-def colourSelection():
-    pass
-
-
 def endOfGamePage(winner):
     time.sleep(1)
     print("endOfGamePage")
@@ -298,7 +373,10 @@ def endOfGamePage(winner):
 
 def saveGame():
     now = datetime.now()
-    saveFile = "savedGames/game_" + str(now)
+    timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+    save_dir = os.path.join(own_dir, "savedGames")
+    
+    saveFile = os.path.join(save_dir, f"game_{timestamp}")
     shutil.copy("record.txt", saveFile)
 
     homePage()
