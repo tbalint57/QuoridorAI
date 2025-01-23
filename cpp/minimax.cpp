@@ -5,6 +5,9 @@
 
 using namespace std;
 
+// THIS CODE CURRENTLY DOES NOT WORK!
+// undoMove and evaluate not defined, fix when you feel like it
+
 float minimax(Board* board, int depth, bool player, float alpha, float beta){
 
     if (depth == 0){

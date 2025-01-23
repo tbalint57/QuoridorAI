@@ -9,6 +9,10 @@ import time
 from datetime import datetime
 import shutil
 
+# Modifications during holiday to talk about:
+#     * code cleanup
+#     * saving and veiwing past matches finally works
+
 pygame.init()
 
 # Define board settings

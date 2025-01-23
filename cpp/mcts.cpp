@@ -5,6 +5,20 @@
 #include <queue>
 #include "board.cpp"
 
+/*
+    Modifications during holiday to talk about:
+        * this code did not work properly before the break, but now it does
+        * change in children, so will not hit memory problem
+        * use of heuristics to make simulation better (still some work to do)
+        * memory management fun
+    
+    Where to next:
+        * use threads to simulate multiple games from ending parallel
+        * tweak heuristics
+        * train a (FAST!!!) model for simulation (heard: SVMs might be a good idea) <- TALK ABOUT THIS
+        * train a model for node heuristic (this could be SVMs again, or even neural networks, if that is something they give marks for...) <- CAN THIS BE DONE IN C++?
+*/
+
 float MCTS_CONST = sqrt(2);
 
 vector<uint8_t> movesExecuted = {};
@@ -252,7 +266,6 @@ inline uint8_t rolloutPolicy_probableNextMoveWithHalfProbabilityOfPawnMovement(B
     // possibleMoves[0] is a pawn movement and thus definitely valid.
     return possibleMoves[0];
 }
-
 
 
 uint8_t rolloutPolicy(Board* board, bool player){

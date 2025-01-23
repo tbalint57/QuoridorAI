@@ -6,6 +6,16 @@
 #include <algorithm>
 #include <string>
 
+/*
+    Modifications during holiday to talk about:
+        * No longer tracking shortest paths
+        * Change from bfs to dfs (irrelevant)
+        * Got rid of vestor in dfs
+        * dfs implementation optimised
+        * unchecked/probable move generation
+        * possibility of even less call to dfs by cycle detection in walls first (probably not worth it)
+*/
+
 #define RIGHT 0
 #define DOWN 256
 #define LEFT 512
@@ -611,9 +621,6 @@ class Board
         int jWhite = whitePawn & 0x0f;
         int iBlack = (blackPawn & 0xf0) >> 4;
         int jBlack = blackPawn & 0x0f;
-        if (iWhite > 8 || iBlack > 8 || jWhite > 8 || jBlack > 8){
-            cout << "Pawn Out Of Bound\n";
-        }
     }
     
 
