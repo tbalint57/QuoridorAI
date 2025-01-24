@@ -1,5 +1,5 @@
 from game import Game
-from typing import Tuple, List
+from typing import Tuple
 import time
 
 class Board:
@@ -8,14 +8,14 @@ class Board:
                  isVerticalPressed: bool = False, 
                  gameState: Game = Game(), 
                  whiteTurn: bool = True, 
-                 moves: List[Tuple[bool, Tuple[int, int], bool]] = [],
+                 moves: list[Tuple[bool, Tuple[int, int], bool]] = [],
                  currentMove: int = 0):
         
         self.isHorizontalPressed: bool = isHorizontalPressed
         self.isVerticalPressed: bool = isVerticalPressed
         self.gameState: Game = gameState
         self.whiteTurn: bool = whiteTurn
-        self.moves: List[Tuple[bool, Tuple[int, int], bool]] = moves
+        self.moves: list[Tuple[bool, Tuple[int, int], bool]] = moves
         self.currentMove = currentMove
 
     
