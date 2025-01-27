@@ -3,6 +3,9 @@
 #include <cstdlib>
 #include <math.h>
 #include <queue>
+#include <thread>
+#include <atomic>
+#include <future>
 #include "board.cpp"
 
 /*
@@ -109,14 +112,40 @@ uint8_t mostVisitedMove(Node* node);
 
 
 uint8_t mcts(Board state, int rollouts, bool whiteTurn){
-    int simulationsPerRollout = 1;
+    int simulationsPerRollout = 10;
     Node *root = new Node(nullptr, whiteTurn, 0);
     Board board = Board(state);
 
     while(rollouts > 0){
         Node* leaf = findLeaf(root, &board);
-        bool simulationResult[simulationsPerRollout] = {false};
-        simulationResult[0] = rollout(&board, leaf->player);
+
+        // Threading does not work, too much overhead for thread creation: ~100 usec, while a single rollout is roughly 50 usec
+        // // =========== THREADING START ==========
+        // vector<int> simulationResult(simulationsPerRollout);
+        // vector<thread> threads;
+        // for(int i = 0; i < simulationsPerRollout; i++){
+        //     threads.emplace_back([&, i]() {
+        //         Board boardCopy = board;
+        //         simulationResult[i] = rollout(&boardCopy, leaf->player);
+        //     });
+        // }
+
+        // // Run threads
+        // for (thread& th : threads) {
+        //     th.join();
+        // }
+        // // =========== THREADING END ===========
+
+
+
+        // =========== NORMAL START ==========
+        vector<bool> simulationResult(simulationsPerRollout);
+        for(int i = 0; i < simulationsPerRollout; i++){
+            Board boardCopy = board;
+            simulationResult[i] = rollout(&boardCopy, leaf->player);
+        }
+        // =========== NORMAL END ===========
+
 
         int whiteWins = 0;
         int blackWins = 0;
@@ -124,8 +153,7 @@ uint8_t mcts(Board state, int rollouts, bool whiteTurn){
         for(int i = 0; i < simulationsPerRollout; i++){
             if(simulationResult[i]){
                 whiteWins++;
-            }
-            else{
+            }else{
                 blackWins++;
             }
         }
@@ -353,32 +381,33 @@ uint8_t mostVisitedMove(Node* node){
 // Currently here for testing, obviously to be removed
 
 
-// #include <chrono> 
-// int main(int argc, char const *argv[]){
-//     // srand (time(NULL));
-//     // Board board = Board();
-//     // bool whiteTurn = true;
+#include <chrono> 
+int main(int argc, char const *argv[]){
+    srand (time(NULL));
+    Board board = Board();
+    bool whiteTurn = true;
 
-//     // auto start = chrono::high_resolution_clock::now();
-//     // uint8_t move = mcts(board, 100000, whiteTurn);
-//     // cout << board.translateMove(move) << endl;
-//     // auto end = chrono::high_resolution_clock::now();
-//     // std::chrono::duration<double> duration = end - start;
-//     // cout << "Move made in " << duration.count() << " seconds" << endl;
+    auto start = chrono::high_resolution_clock::now();
+    // uint8_t move = mcts(board, 10000, whiteTurn);
+    // cout << board.translateMove(move) << endl;
+    rollout(&board, true);
+    auto end = chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    cout << "Move made in " << duration.count() << " seconds" << endl;
 
-//     // for(int i = 0; i < 100; i++){
-//     //     auto start = chrono::high_resolution_clock::now();
-//     //     uint8_t move = mcts(board, 100000, whiteTurn);
-//     //     cout << board.translateMove(move) << endl;
-//     //     auto end = chrono::high_resolution_clock::now();
-//     //     std::chrono::duration<double> duration = end - start;
-//     //     cout << "Move made in " << duration.count() << " seconds" << endl;
-//     //     board.executeMove(move, whiteTurn);
-//     //     if(board.getWinner()){
-//     //         cout << "The winner is: " << board.getWinner() << endl;
-//     //         break;
-//     //     }
-//     //     whiteTurn = !whiteTurn;
-//     // }
-//     // cout << "Simulation finished" << endl;
-// }
+    // for(int i = 0; i < 100; i++){
+    //     auto start = chrono::high_resolution_clock::now();
+    //     uint8_t move = mcts(board, 100000, whiteTurn);
+    //     cout << board.translateMove(move) << endl;
+    //     auto end = chrono::high_resolution_clock::now();
+    //     std::chrono::duration<double> duration = end - start;
+    //     cout << "Move made in " << duration.count() << " seconds" << endl;
+    //     board.executeMove(move, whiteTurn);
+    //     if(board.getWinner()){
+    //         cout << "The winner is: " << board.getWinner() << endl;
+    //         break;
+    //     }
+    //     whiteTurn = !whiteTurn;
+    // }
+    // cout << "Simulation finished" << endl;
+}

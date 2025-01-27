@@ -744,26 +744,26 @@ class Board
 
 
     Board& operator=(const Board& other) {
-    if (this != &other) {
-        this->whitePawn = other.whitePawn;
-        this->blackPawn = other.blackPawn;
+        if (this != &other) {
+            this->whitePawn = other.whitePawn;
+            this->blackPawn = other.blackPawn;
 
-        for (int i = 0; i < 128; i++) {
-            this->wallsOnBoard[i] = other.wallsOnBoard[i];
-            this->takenWallPlaces[i] = other.takenWallPlaces[i];
+            for (int i = 0; i < 128; i++) {
+                this->wallsOnBoard[i] = other.wallsOnBoard[i];
+                this->takenWallPlaces[i] = other.takenWallPlaces[i];
+            }
+
+            for (int i = 0; i < 904; i++) {
+                this->walledOffCells[i] = other.walledOffCells[i];
+            }
+
+            this->whiteWalls = other.whiteWalls;
+            this->blackWalls = other.blackWalls;
+
+            this->winner = other.winner;
         }
-
-        for (int i = 0; i < 904; i++) {
-            this->walledOffCells[i] = other.walledOffCells[i];
-        }
-
-        this->whiteWalls = other.whiteWalls;
-        this->blackWalls = other.blackWalls;
-
-        this->winner = other.winner;
+        return *this;
     }
-    return *this;
-}
 
 
     char getWinner(){
