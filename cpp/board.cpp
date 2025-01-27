@@ -7,13 +7,12 @@
 #include <string>
 
 /*
-    Modifications during holiday to talk about:
-        * No longer tracking shortest paths
-        * Change from bfs to dfs (irrelevant)
-        * Got rid of vestor in dfs
-        * dfs implementation optimised
-        * unchecked/probable move generation
-        * possibility of even less call to dfs by cycle detection in walls first (probably not worth it)
+    Modifications to talk about, supervision 2025.01.31.:
+    
+    TODO:
+        * use bfs to generate best pawn move (on the shortest path)
+        * possibility of even less call to dfs by cycle detection in walls first (probably faster, and marks for algorithm)
+
 */
 
 #define RIGHT 0
@@ -55,6 +54,7 @@ class Board
 
     bool dfs(bool player){
         uint8_t startCell = player ? whitePawn : blackPawn;
+        // write in that this is fatser than vector
         uint8_t todo[81];
         size_t todoSize = 0;
         bool seen[137] = {false};

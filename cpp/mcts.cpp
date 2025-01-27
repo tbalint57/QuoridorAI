@@ -6,17 +6,14 @@
 #include "board.cpp"
 
 /*
-    Modifications during holiday to talk about:
-        * this code did not work properly before the break, but now it does
-        * change in children, so will not hit memory problem
-        * use of heuristics to make simulation better (still some work to do)
-        * memory management fun
+    Modifications to talk about, supervision 2025.01.31.:
+        * backpropagate rewrite for parallel simulation
     
-    Where to next:
+    TODO:
         * use threads to simulate multiple games from ending parallel
-        * tweak heuristics
-        * train a (FAST!!!) model for simulation (heard: SVMs might be a good idea) <- TALK ABOUT THIS
-        * train a model for node heuristic (this could be SVMs again, or even neural networks, if that is something they give marks for...) <- CAN THIS BE DONE IN C++?
+        * tweak heuristics (shortest path move)
+        * research and implement GAUSSIAN PROCESSES!!!
+
 */
 
 float MCTS_CONST = sqrt(2);
@@ -105,20 +102,35 @@ public:
 
 Node* findLeaf(Node* node, Board* board);
 bool rollout(Board* board, bool player);
-void backpropagate(Node* node, bool result);
+void backpropagate(Node* node, int whiteWins, int blackWins);
 uint8_t rolloutPolicy(Board* board, bool player);
 uint8_t bestUCT(Node* node);
 uint8_t mostVisitedMove(Node* node);
 
 
 uint8_t mcts(Board state, int rollouts, bool whiteTurn){
+    int simulationsPerRollout = 1;
     Node *root = new Node(nullptr, whiteTurn, 0);
     Board board = Board(state);
 
     while(rollouts > 0){
         Node* leaf = findLeaf(root, &board);
-        bool simulationResult = rollout(&board, leaf->player);
-        backpropagate(leaf, simulationResult);
+        bool simulationResult[simulationsPerRollout] = {false};
+        simulationResult[0] = rollout(&board, leaf->player);
+
+        int whiteWins = 0;
+        int blackWins = 0;
+
+        for(int i = 0; i < simulationsPerRollout; i++){
+            if(simulationResult[i]){
+                whiteWins++;
+            }
+            else{
+                blackWins++;
+            }
+        }
+
+        backpropagate(leaf, whiteWins, blackWins);
 
         board = state;
         movesExecuted = {};
@@ -273,9 +285,10 @@ uint8_t rolloutPolicy(Board* board, bool player){
 }
 
 
-void backpropagate(Node* node, bool result){
+void backpropagate(Node* node, int whiteWins, int blackWins){
     while(node){
-        result ? node->whiteWins++ : node->blackWins++;
+        node->whiteWins += whiteWins;
+        node->blackWins += blackWins;
         node = node->parent;
     }
 }
@@ -335,3 +348,37 @@ uint8_t mostVisitedMove(Node* node){
     }
     return bestMove;
 }
+
+
+// Currently here for testing, obviously to be removed
+
+
+// #include <chrono> 
+// int main(int argc, char const *argv[]){
+//     // srand (time(NULL));
+//     // Board board = Board();
+//     // bool whiteTurn = true;
+
+//     // auto start = chrono::high_resolution_clock::now();
+//     // uint8_t move = mcts(board, 100000, whiteTurn);
+//     // cout << board.translateMove(move) << endl;
+//     // auto end = chrono::high_resolution_clock::now();
+//     // std::chrono::duration<double> duration = end - start;
+//     // cout << "Move made in " << duration.count() << " seconds" << endl;
+
+//     // for(int i = 0; i < 100; i++){
+//     //     auto start = chrono::high_resolution_clock::now();
+//     //     uint8_t move = mcts(board, 100000, whiteTurn);
+//     //     cout << board.translateMove(move) << endl;
+//     //     auto end = chrono::high_resolution_clock::now();
+//     //     std::chrono::duration<double> duration = end - start;
+//     //     cout << "Move made in " << duration.count() << " seconds" << endl;
+//     //     board.executeMove(move, whiteTurn);
+//     //     if(board.getWinner()){
+//     //         cout << "The winner is: " << board.getWinner() << endl;
+//     //         break;
+//     //     }
+//     //     whiteTurn = !whiteTurn;
+//     // }
+//     // cout << "Simulation finished" << endl;
+// }
