@@ -10,7 +10,8 @@
 
 /*
     Modifications to talk about, supervision 2025.01.31.:
-        * backpropagate rewrite for parallel simulation
+        * backpropagate rewrite for multiple simulation
+        * why multi-threading does not work, but multiple simulation does (talk about why thread pooling is not faster either)
     
     TODO:
         * use threads to simulate multiple games from ending parallel
