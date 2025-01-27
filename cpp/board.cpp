@@ -1,8 +1,6 @@
 #include <iostream>
 #include <stdint.h>
 #include <vector>
-#include <queue>
-#include <unordered_set>
 #include <algorithm>
 #include <string>
 
@@ -119,19 +117,23 @@ class Board
 
     int bfs(bool player){
         uint8_t startCell = player ? whitePawn : blackPawn;
-        queue<uint8_t> todo = {};
+        uint8_t todo[81] = {};
+        int todoFront = 0;
+        int todoBack = 0;
+
         bool seen[137] = {false};
         int depth[137] = {0};
 
-        todo.push(startCell);
         seen[startCell] = true;
+        todo[todoBack] = startCell;
+        todoBack++;
 
         uint8_t curCell;
         uint8_t neighbourCell;
         bool foundRoute = false;
 
-        while (todo.size() > 0){
-            curCell = todo.front();
+        while (todoBack - todoFront > 0){
+            curCell = todo[todoFront];
             foundRoute = (player && curCell >= 128) || (!player && curCell <= 8);
 
             if (foundRoute){
@@ -142,7 +144,8 @@ class Board
             if((curCell & 0xf) != 8 && !walledOffCells[curCell + RIGHT]){
                 neighbourCell = curCell + 1;
                 if (!seen[neighbourCell]){
-                    todo.push(neighbourCell);
+                    todo[todoBack] = neighbourCell;
+                    todoBack++;
                     seen[neighbourCell] = true;
                     depth[neighbourCell] = depth[curCell] + 1;
                 }
@@ -151,7 +154,8 @@ class Board
             if((curCell & 0xf) != 0 && !walledOffCells[curCell + LEFT]){
                 neighbourCell = curCell - 1;
                 if (!seen[neighbourCell]){
-                    todo.push(neighbourCell);
+                    todo[todoBack] = neighbourCell;
+                    todoBack++;
                     seen[neighbourCell] = true;
                     depth[neighbourCell] = depth[curCell] + 1;
                 }
@@ -160,7 +164,8 @@ class Board
             if(((curCell & 0xf0) >> 4) != 8 && !walledOffCells[curCell + UP]){
                 neighbourCell = curCell + 16;
                 if (!seen[neighbourCell]){
-                    todo.push(neighbourCell);
+                    todo[todoBack] = neighbourCell;
+                    todoBack++;
                     seen[neighbourCell] = true;
                     depth[neighbourCell] = depth[curCell] + 1;
                 }
@@ -169,12 +174,13 @@ class Board
             if(((curCell & 0xf0) >> 4) != 0 && !walledOffCells[curCell + DOWN]){
                 neighbourCell = curCell - 16;
                 if (!seen[neighbourCell]){
-                    todo.push(neighbourCell);
+                    todo[todoBack] = neighbourCell;
+                    todoBack++;
                     seen[neighbourCell] = true;
                     depth[neighbourCell] = depth[curCell] + 1;
                 }
             }
-            todo.pop();
+            todoFront++;
         }
         return depth[curCell];
     }
@@ -628,7 +634,7 @@ class Board
      * Generate possible move for given player
      * 
      * @param player true: white, false: black
-     * @return possible moves in a vector
+     * @return possible moves
      */
     int generatePossibleMoves(bool player, uint8_t* possibleMoves, size_t& moveCount){        
         generatePossiblePawnMoves(player, possibleMoves, moveCount);
@@ -642,7 +648,7 @@ class Board
      * Generate possible move for given player, this may include invalid wall placements
      * 
      * @param player true: white, false: black
-     * @return possible moves in a vector
+     * @return possible moves
      */
     int generatePossibleMovesUnchecked(bool player, uint8_t* possibleMoves, size_t& moveCount){        
         generatePossiblePawnMoves(player, possibleMoves, moveCount);
@@ -656,7 +662,7 @@ class Board
      * Generate probable move for given player, this may include invalid wall placements
      * 
      * @param player true: white, false: black
-     * @return possible moves in a vector
+     * @return possible moves
      */
     int generateProbableMovesUnchecked(bool player, uint8_t* possibleMoves, size_t& moveCount){        
         generatePossiblePawnMoves(player, possibleMoves, moveCount);

@@ -388,9 +388,8 @@ int main(int argc, char const *argv[]){
     bool whiteTurn = true;
 
     auto start = chrono::high_resolution_clock::now();
-    // uint8_t move = mcts(board, 10000, whiteTurn);
-    // cout << board.translateMove(move) << endl;
-    rollout(&board, true);
+    uint8_t move = mcts(board, 10000, whiteTurn);
+    cout << board.translateMove(move) << endl;
     auto end = chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     cout << "Move made in " << duration.count() << " seconds" << endl;
