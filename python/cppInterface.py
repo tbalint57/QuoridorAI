@@ -25,7 +25,7 @@ lib.freeMemory.argtypes = (POINTER(c_uint8),)
 lib.freeMemory.restype = None
 
 
-def calculateBestMove(board, player, rollouts = 100_000):
+def calculateBestMove(board, player, rollouts = 10_000):
     whitePawn = Cell(board.whitePawn[0], board.whitePawn[1])
     blackPawn = Cell(board.blackPawn[0], board.blackPawn[1])
     walls = (Wall * len(board.wallsOnBoard))(*board.wallsOnBoard)

@@ -6,6 +6,8 @@
 #include "mcts.cpp"
 using namespace std;
 
+// For future reference, this is how to compile:
+// g++ -shared -Wl,-soname,interface -o cpp/interface.so -fPIC cpp/interface.cpp
 
 extern "C" {
     struct Cell {
