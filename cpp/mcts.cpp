@@ -1,4 +1,3 @@
-// part 3 application is on the website 13th of february!!!
 #include <stdint.h>
 #include <cstdlib>
 #include <math.h>
@@ -9,13 +8,10 @@
 #include "board.cpp"
 
 /*
-    Modifications to talk about, supervision 2025.01.31.:
-        * backpropagate rewrite for multiple simulation
-        * why multi-threading does not work, but multiple simulation does (talk about why thread pooling is not faster either)
+    Modifications to talk about, supervision 2025.02.13.:
+        * integrated shortest path move (debugged)
     
     TODO:
-        * use threads to simulate multiple games from ending parallel
-        * tweak heuristics (shortest path move)
         * research and implement GAUSSIAN PROCESSES!!!
 
 */

@@ -4,16 +4,6 @@
 #include <algorithm>
 #include <string>
 
-/*
-    Modifications to talk about, supervision 2025.01.31.:
-    
-    TODO:
-        * use bfs to generate best pawn move (on the shortest path)
-        * possibility of even less call to dfs by cycle detection in walls first (probably faster, and marks for algorithm)
-        * add extra features to GP???
-        * Start dissertation
-*/
-
 #define RIGHT 0
 #define DOWN 256
 #define LEFT 512
