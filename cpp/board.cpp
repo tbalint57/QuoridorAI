@@ -10,7 +10,8 @@
     TODO:
         * use bfs to generate best pawn move (on the shortest path)
         * possibility of even less call to dfs by cycle detection in walls first (probably faster, and marks for algorithm)
-
+        * add extra features to GP???
+        * Start dissertation
 */
 
 #define RIGHT 0
@@ -669,6 +670,130 @@ class Board
         int pawnMoves =  moveCount;
         generateProbableWallPlacements(player, possibleMoves, moveCount, false);
         return pawnMoves;
+    }
+
+
+    uint8_t generateMoveOnShortestPath(bool player){
+        uint8_t startCell = player ? whitePawn : blackPawn;
+        uint8_t todo[81] = {};
+        int todoFront = 0;
+        int todoBack = 0;
+
+        bool seen[137] = {false};
+        int depth[137] = {0};
+        uint8_t parent[137];
+
+        seen[startCell] = true;
+        parent[startCell] = startCell;
+        todo[todoBack] = startCell;
+        todoBack++;
+
+        uint8_t curCell;
+        uint8_t neighbourCell;
+        bool foundRoute = false;
+
+        while (todoBack - todoFront > 0){
+            curCell = todo[todoFront];
+            foundRoute = (player && curCell >= 128) || (!player && curCell <= 8);
+
+            if (foundRoute){
+                break;
+            }
+
+            // This is ugly, copy-paste is king...
+            if((curCell & 0xf) != 8 && !walledOffCells[curCell + RIGHT]){
+                neighbourCell = curCell + 1;
+                if (!seen[neighbourCell]){
+                    todo[todoBack] = neighbourCell;
+                    todoBack++;
+                    seen[neighbourCell] = true;
+                    depth[neighbourCell] = depth[curCell] + 1;
+                    parent[neighbourCell] = curCell;
+                }
+
+                if((neighbourCell > 127 && player) || (neighbourCell < 9 && !player)){
+                    break;
+                }
+            }
+
+            if((curCell & 0xf) != 0 && !walledOffCells[curCell + LEFT]){
+                neighbourCell = curCell - 1;
+                if (!seen[neighbourCell]){
+                    todo[todoBack] = neighbourCell;
+                    todoBack++;
+                    seen[neighbourCell] = true;
+                    depth[neighbourCell] = depth[curCell] + 1;
+                    parent[neighbourCell] = curCell;
+                }
+
+                if((neighbourCell > 127 && player) || (neighbourCell < 9 && !player)){
+                    break;
+                }
+            }
+
+            if(((curCell & 0xf0) >> 4) != 8 && !walledOffCells[curCell + UP]){
+                neighbourCell = curCell + 16;
+                if (!seen[neighbourCell]){
+                    todo[todoBack] = neighbourCell;
+                    todoBack++;
+                    seen[neighbourCell] = true;
+                    depth[neighbourCell] = depth[curCell] + 1;
+                    parent[neighbourCell] = curCell;
+                }
+
+                if((neighbourCell > 127 && player) || (neighbourCell < 9 && !player)){
+                    break;
+                }
+            }
+
+            if(((curCell & 0xf0) >> 4) != 0 && !walledOffCells[curCell + DOWN]){
+                neighbourCell = curCell - 16;
+                if (!seen[neighbourCell]){
+                    todo[todoBack] = neighbourCell;
+                    todoBack++;
+                    seen[neighbourCell] = true;
+                    depth[neighbourCell] = depth[curCell] + 1;
+                    parent[neighbourCell] = curCell;
+                }
+
+                if((neighbourCell > 127 && player) || (neighbourCell < 9 && !player)){
+                    break;
+                }
+            }
+            todoFront++;
+        }
+        
+        curCell = todo[todoBack - 1];
+        uint8_t path[81];
+        size_t pathSize = 0;
+
+        while(parent[curCell] != curCell){
+            path[pathSize] = curCell;
+            pathSize++;
+            curCell = parent[curCell];
+        }
+
+        uint8_t possibleMoves[5];
+        size_t moveCount;
+        generatePossiblePawnMoves(player, possibleMoves, moveCount);
+
+        uint8_t playerPawn = player ? whitePawn : blackPawn;
+        uint8_t opponentPawn = player ? blackPawn : whitePawn;
+        for(int i = 0; i < moveCount; i++){
+            uint8_t move = possibleMoves[i];
+
+            uint8_t nextCell = playerPawn;
+            (move & 8) ? nextCell += (move & 48) : nextCell -= (move & 48);
+            (move & 4) ? nextCell += (move & 3) : nextCell -= (move & 3);
+
+            if(nextCell != opponentPawn && (nextCell == path[pathSize - 1] || nextCell == path[pathSize - 2])){
+                return move;
+            }
+        }
+
+        // It is possible that none of the hops are on the shortest path we found. In this case return a random hop.
+        // Note: This is not always the best move, as it is somtimes not on any of the shortest paths.
+        return possibleMoves[0];
     }
 
 
