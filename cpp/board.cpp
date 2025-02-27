@@ -774,11 +774,12 @@ class Board
         }
 
         uint8_t possibleMoves[5];
-        size_t moveCount;
+        size_t moveCount = 0;
         generatePossiblePawnMoves(player, possibleMoves, moveCount);
 
         uint8_t playerPawn = player ? whitePawn : blackPawn;
         uint8_t opponentPawn = player ? blackPawn : whitePawn;
+
         for(int i = 0; i < moveCount; i++){
             uint8_t move = possibleMoves[i];
 
