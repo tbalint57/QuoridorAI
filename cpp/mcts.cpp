@@ -106,10 +106,35 @@ void backpropagate(Node* node, int whiteWins, int blackWins);
 uint8_t rolloutPolicy(Board* board, bool player);
 uint8_t bestUCT(Node* node);
 uint8_t mostVisitedMove(Node* node);
+Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn);
+void nodeVisits(Node* node, int* moves);
 
 
-uint8_t mcts(Board state, int rollouts, bool whiteTurn){
-    int simulationsPerRollout = 10;
+uint8_t mcts(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn){
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn);
+    uint8_t bestMove = mostVisitedMove(mctsTree);
+
+    delete(mctsTree);
+    return bestMove;
+}
+
+
+void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution){
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn);
+    nodeVisits(mctsTree, distribution);
+}
+
+
+uint8_t getMoveDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn){
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn);
+    uint8_t bestMove = mostVisitedMove(mctsTree);
+
+    delete(mctsTree);
+    return bestMove;
+}
+
+
+Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn){
     Node *root = new Node(nullptr, whiteTurn, 0);
     Board board = Board(state);
 
@@ -162,9 +187,7 @@ uint8_t mcts(Board state, int rollouts, bool whiteTurn){
         rollouts--;
     }
 
-    uint8_t bestMove = mostVisitedMove(root);
-    delete(root);
-    return bestMove;
+    return root;
 }
 
 
@@ -370,4 +393,16 @@ uint8_t mostVisitedMove(Node* node){
         }
     }
     return bestMove;
+}
+
+
+void nodeVisits(Node* node, int* moves){
+    for (int move = 0; move < 256; move++){
+        Node* child = node->children[move];
+        if(!child){
+            continue;
+        }
+
+        moves[move] = child->whiteWins + child->blackWins;
+    }
 }

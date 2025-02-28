@@ -554,6 +554,16 @@ class Board
     }
 
 
+    inline float shortestPawnHeuristic(uint8_t move, bool player){
+        uint8_t shortestPawnMove = generateMoveOnShortestPath(player);
+        if(move == shortestPawnMove){
+            return 100;
+        }
+
+        return 0;
+    }
+
+
     public:
     
 
@@ -793,8 +803,8 @@ class Board
      * 
      * @return evaluation value
      */
-    float calculateHeuristicForMove(uint8_t move, bool player) {
-        return pawnHeuristic(move, player);
+    inline float calculateHeuristicForMove(uint8_t move, bool player) {
+        return shortestPawnHeuristic(move, player);
     }
 
 
