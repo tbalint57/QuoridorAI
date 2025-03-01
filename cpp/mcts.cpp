@@ -122,6 +122,7 @@ uint8_t mcts(Board state, int rollouts, int simulationsPerRollout, bool whiteTur
 void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution){
     Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn);
     nodeVisits(mctsTree, distribution);
+    delete(mctsTree);
 }
 
 

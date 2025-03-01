@@ -918,6 +918,25 @@ class Board
     }
 
 
+    void getSaveData(uint8_t* saveData){
+        saveData[1] = whitePawn;
+        saveData[2] = blackPawn;
+        saveData[3] = whiteWalls;
+        saveData[4] = blackWalls;
+
+        uint8_t saveLength = 5;
+
+        for(int wallPlacement = 0; wallPlacement < 128; wallPlacement++){
+            if(wallsOnBoard[wallPlacement]){
+                saveData[saveLength] = wallPlacement;
+                saveLength++;
+            }
+        }
+
+        saveData[0] = saveLength;
+    }
+
+
     bool operator==(const Board& other){
         bool whitePawn = this->whitePawn == other.whitePawn;
         bool blackPawn = this->blackPawn == other.blackPawn;
@@ -993,6 +1012,21 @@ class Board
 
         this->whiteWalls = 10;
         this->blackWalls = 10;
+
+        char winner = 0;
+    }
+
+
+    Board(char whitePawn, char blackPawn, char whiteWalls, char blackWalls, char* placedWallsOnBoard, size_t numberOfWallsOnBoard){
+        this->whitePawn = whitePawn;
+        this->blackPawn = blackPawn;
+        
+        for(int i = 0; i < numberOfWallsOnBoard; i++){
+            executeMove(128 + placedWallsOnBoard[i], true);
+        }
+
+        this->whiteWalls = whiteWalls;
+        this->blackWalls = blackWalls;
 
         char winner = 0;
     }
