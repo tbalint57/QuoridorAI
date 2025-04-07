@@ -103,15 +103,15 @@ public:
 Node* findLeaf(Node* node, Board* board, float mctsParameter);
 bool rollout(Board* board, bool player, int rolloutPolicyParameter);
 void backpropagate(Node* node, int whiteWins, int blackWins);
-uint8_t rolloutPolicy(Board* board, bool player, int notPawnMoveProbability);
+uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter);
 uint8_t bestUCT(Node* node, float mctsParameter);
 uint8_t mostVisitedMove(Node* node, float mctsParameter);
-Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter);
+Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter);
 void nodeVisits(Node* node, int* moves);
 
 
 uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter){
-    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter);
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter);
     uint8_t bestMove = mostVisitedMove(mctsTree, mctsParameter);
 
     delete(mctsTree);
@@ -119,19 +119,19 @@ uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bo
 }
 
 
-void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution, int rolloutPolicyParameter){
-    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter);
+void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution, int rolloutPolicyParameter, float mctsParameter){
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter);
     nodeVisits(mctsTree, distribution);
     delete(mctsTree);
 }
 
 
-Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter){
+Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter){
     Node *root = new Node(nullptr, whiteTurn, 0);
     Board board = Board(state);
 
     while(rollouts > 0){
-        Node* leaf = findLeaf(root, &board);
+        Node* leaf = findLeaf(root, &board, mctsParameter);
 
         // Threading does not work, too much overhead for thread creation: ~100 usec, while a single rollout is roughly 50 usec
         // // =========== THREADING START ==========
@@ -199,7 +199,7 @@ Node* findLeaf(Node* node, Board* board, float mctsParameter){
     }
 
     node->expandNode(board);
-    uint8_t bestMove = bestUCT(node), mctsParameter;
+    uint8_t bestMove = bestUCT(node, mctsParameter);
 
     board->executeMove(bestMove, node->player);
     movesExecuted.push_back(bestMove);
@@ -318,11 +318,11 @@ inline uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
 }
 
 
-uint8_t rolloutPolicy(Board* board, bool player, int notPawnMoveProbability){
+uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
 
-    bool pawnMove = rand() % notPawnMoveProbability;
+    bool pawnMove = rand() % rolloutPolicyParameter;
 
     if (pawnMove != 0){
         return board->generateMoveOnShortestPath(player);

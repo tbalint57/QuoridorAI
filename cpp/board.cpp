@@ -1038,7 +1038,7 @@ class Board
         this->whiteWalls = whiteWalls;
         this->blackWalls = blackWalls;
 
-        char winner = 0;
+        this->winner = 0;
     }
 };
 

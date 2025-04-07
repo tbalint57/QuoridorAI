@@ -9,8 +9,10 @@
 #include <cstdio>
 using namespace std;
 
-int ROLLOUTS = 10000;
+int ROLLOUTS = 1000;
 int SIMULATIONS_PER_ROLLOUT = 3;
+int ROLLOUT_PARAMETER = 4;
+float MCTS_PARAMETER = sqrt(2);
 
 
 int nthBestMove(int* distribution, int n) {
@@ -50,7 +52,7 @@ void createDataSet(Board* board, string saveFileName, int* branchings, int numbe
     }
 
     int distribution[256] = {0};
-    mctsDistribution(*board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, player, distribution);
+    mctsDistribution(*board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, player, distribution, MCTS_PARAMETER, ROLLOUT_PARAMETER);
 
     seenBoards->insert(*board);
     saveBoardPosition(board, saveFileName, distribution);
@@ -124,6 +126,7 @@ int main(int argc, char const* argv[]) {
         std::cout << "Board #" << i << ":\n";
         boards[i].printState(); // assuming your Board class has a printState() function
 
+        std::cout << "Distribution: \n";
         int sum = 0;
         for (int j = 0; j < 256; ++j) {
             sum += distributions[i][j];
@@ -131,8 +134,7 @@ int main(int argc, char const* argv[]) {
                 std::cout << "  Move " << j << ": " << distributions[i][j] << "\n";
             }
         }
-        std::cout << "Distribution: " << sum;
-        std::cout << "---------------------------\n";
+        std::cout << sum << "---------------------------\n";
     }
 
     // Clean up
