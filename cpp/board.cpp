@@ -956,7 +956,7 @@ class Board
                 cout << i << " ";
             }
         }
-        cout << "\n";
+        cout << this->winner << "\n";
     }
 
 

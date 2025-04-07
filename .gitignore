@@ -14,3 +14,5 @@ main
 mcts
 foreign_models
 cpp/dataGeneration
+cpp/hyperparamSearch
+cpp/bigData

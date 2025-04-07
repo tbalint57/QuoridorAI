@@ -9,10 +9,10 @@
 #include <cstdio>
 using namespace std;
 
-int ROLLOUTS = 1000;
+int ROLLOUTS = 100;
 int SIMULATIONS_PER_ROLLOUT = 3;
 int ROLLOUT_PARAMETER = 4;
-float MCTS_PARAMETER = sqrt(2);
+float MCTS_PARAMETER = 0.5;
 
 
 int nthBestMove(int* distribution, int n) {
@@ -42,7 +42,7 @@ void saveBoardPosition(Board* board, string saveFileName, int* distribution){
 }
 
 
-void createDataSet(Board* board, string saveFileName, int* branchings, int numberOfMoves, bool player, unordered_set<Board, BoardHasher>* seenBoards){
+void createDataSet(Board* board, string saveFileName, int* branchings, bool player, unordered_set<Board, BoardHasher>* seenBoards){
     if(board->getWinner()){
         return;
     }
@@ -52,7 +52,7 @@ void createDataSet(Board* board, string saveFileName, int* branchings, int numbe
     }
 
     int distribution[256] = {0};
-    mctsDistribution(*board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, player, distribution, MCTS_PARAMETER, ROLLOUT_PARAMETER);
+    mctsDistribution(*board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, player, distribution, ROLLOUT_PARAMETER, MCTS_PARAMETER);
 
     seenBoards->insert(*board);
     saveBoardPosition(board, saveFileName, distribution);
@@ -60,7 +60,7 @@ void createDataSet(Board* board, string saveFileName, int* branchings, int numbe
     for(int i = 1; i <= branchings[0]; i++){
         Board boardCopy = Board(*board);
         boardCopy.executeMove(nthBestMove(distribution, i), player);
-        createDataSet(&boardCopy, saveFileName, branchings + 1, numberOfMoves - 1, !player, seenBoards);
+        createDataSet(&boardCopy, saveFileName, branchings + 1, !player, seenBoards);
     }
 }
 
@@ -98,22 +98,92 @@ void readInSaveFile(Board* boards, int distributions[][256], size_t& size, strin
 int main(int argc, char const* argv[]) {
     const std::string saveFileName = "bigData";
 
-    // Step 1: Delete the save file if it exists
+    // Delete the save file if it exists
     remove(saveFileName.c_str());
 
-    // Step 2: Create and save data
-    Board board = Board();
-    int branchings[36] = {1, 1, 1, 1, 1, 1, 1, 1,
-                          1, 1, 1, 1, 1, 1, 1, 1,
+    // Create and save data
+    int branchings[36] = {2, 2, 2, 2, 1, 1, 2, 1,
+                          1, 2, 1, 1, 2, 1, 1, 2,
                           1, 1, 1, 1, 1, 1, 1, 1,
                           1, 1, 1, 1, 1, 1, 1, 1,
                           1, 1, 1, 0};  // 36 total
 
     std::unordered_set<Board, BoardHasher> seenBoards;
-    createDataSet(&board, saveFileName, branchings, 36, true, &seenBoards);
 
-    // Step 3: Read from the save file
-    const size_t maxBoards = 10000; // adjust depending on how big the data can get
+
+    // Starting State
+    Board board = Board();
+    createDataSet(&board, saveFileName, branchings, true, &seenBoards);
+    cout << "State #" << 1 << "/8\n";
+    
+    // The Sidewall Opening 
+    board = Board();
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(179, true);
+    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    cout << "State #" << 2 << "/8\n";
+    
+    // The Rush Opening 
+    board = Board();
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(163, true);
+    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    cout << "State #" << 3 << "/8\n";
+
+    // The Reed Opening 
+    board = Board();
+    board.executeMove(0b11101010, true);
+    board.executeMove(16, false);
+    board.executeMove(0b11101101, true);
+    board.executeMove(16, false);
+    createDataSet(&board, saveFileName, branchings, true, &seenBoards);
+    cout << "State #" << 4 << "/8\n";
+    
+    // The Shatranj Opening 
+    board = Board();
+    board.executeMove(0b10000011, true);
+    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    cout << "State #" << 5 << "/8\n";
+    
+    // The Standard Opening
+    board = Board();
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(0b11010100, true);
+    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    cout << "State #" << 6 << "/8\n";
+    
+    // The Shiller Opening
+    board = Board();
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(24, true);
+    board.executeMove(16, false);
+    board.executeMove(0b10000100, true);
+    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    cout << "State #" << 7 << "/8\n";
+    
+    // The Quick Box Opening
+    board = Board();
+    board.executeMove(24, true);
+    board.executeMove(0b10001100, false);
+    createDataSet(&board, saveFileName, branchings, true, &seenBoards);
+    cout << "State #" << 8 << "/8\n";
+
+     // Step 3: Read from the save file
+    const size_t maxBoards = 100000; // adjust depending on how big the data can get
     Board* boards = new Board[maxBoards];
     int (*distributions)[256] = new int[maxBoards][256];
     size_t size = 0;
@@ -121,25 +191,5 @@ int main(int argc, char const* argv[]) {
     readInSaveFile(boards, distributions, size, saveFileName);
 
     // Step 4: Print out the results
-    std::cout << "Read " << size << " board positions:\n";
-    for (size_t i = 0; i < size; ++i) {
-        std::cout << "Board #" << i << ":\n";
-        boards[i].printState(); // assuming your Board class has a printState() function
-
-        std::cout << "Distribution: \n";
-        int sum = 0;
-        for (int j = 0; j < 256; ++j) {
-            sum += distributions[i][j];
-            if (distributions[i][j] > ROLLOUTS * SIMULATIONS_PER_ROLLOUT / 50) {
-                std::cout << "  Move " << j << ": " << distributions[i][j] << "\n";
-            }
-        }
-        std::cout << sum << "---------------------------\n";
-    }
-
-    // Clean up
-    delete[] boards;
-    delete[] distributions;
-
-    return 0;
+    std::cout << "Read " << size << " board positions.\n";
 }
