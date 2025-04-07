@@ -35,9 +35,7 @@ class Board
     bool takenWallPlaces[128] = {false};
     bool walledOffCells[904] = {false};
 
-    // === Not used yet ===
-    vector<uint8_t> neighbouringWalls[128] = {{}};
-    uint8_t wallsTouchingSide[128] = {0};
+    friend struct BoardHasher;
 
     char winner = 0;
 
@@ -937,7 +935,7 @@ class Board
     }
 
 
-    bool operator==(const Board& other){
+    bool operator==(const Board& other) const {
         bool whitePawn = this->whitePawn == other.whitePawn;
         bool blackPawn = this->blackPawn == other.blackPawn;
         bool whiteWalls = this->whiteWalls == other.whiteWalls;
@@ -947,6 +945,18 @@ class Board
         bool walledOffCells = equal(begin(this->walledOffCells), end(this->walledOffCells), begin(other.walledOffCells));
         bool winner = this->winner == other.winner;
         return whitePawn && blackPawn && whiteWalls && blackWalls && wallsOnBoard && takenWallPlaces && walledOffCells && winner;
+    }
+
+
+    void printState() {
+        cout << "pawns: " << (int)whitePawn << " " << (int)blackPawn << "\n";
+        cout << "walls: " << (int)whiteWalls << " " << (int)blackWalls << "\n";
+        for(int i = 0; i < 128; i++){
+            if (wallsOnBoard[i]){
+                cout << i << " ";
+            }
+        }
+        cout << "\n";
     }
 
 
@@ -978,7 +988,7 @@ class Board
     }
     
 
-    Board(Board& other){
+    Board(const Board& other){
         this->whitePawn = other.whitePawn;
         this->blackPawn = other.blackPawn;
 
@@ -1032,3 +1042,26 @@ class Board
     }
 };
 
+
+#include <functional>
+
+
+struct BoardHasher {
+    size_t operator()(const Board& board) const {
+        size_t hash = 0;
+
+        // Combine all relevant pieces of board state into the hash
+        hash ^= std::hash<uint8_t>{}(board.whitePawn) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= std::hash<uint8_t>{}(board.blackPawn) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= std::hash<uint8_t>{}(board.whiteWalls) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= std::hash<uint8_t>{}(board.blackWalls) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+
+        for (int i = 0; i < 128; i++) {
+            if (board.wallsOnBoard[i]) {
+                hash ^= std::hash<int>{}(i) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+            }
+        }
+
+        return hash;
+    }
+};

@@ -13,3 +13,4 @@ python/savedGames/*
 main
 mcts
 foreign_models
+cpp/dataGeneration

@@ -58,7 +58,7 @@ public:
     }
 
 
-    float getValue(bool player){
+    float getValue(bool player, float mctsParameter){
         float n_node = (float)(this->whiteWins + this->blackWins);
 
         if (!n_node){
@@ -69,7 +69,7 @@ public:
 
         float wins = (float)(player ? whiteWins : blackWins);
 
-        return (this->heuristicValue + wins) / n_node + MCTS_CONST * sqrt(log(n_parent) / n_node);
+        return (this->heuristicValue + wins) / n_node + mctsParameter * sqrt(log(n_parent) / n_node);
     }
 
 
@@ -100,42 +100,33 @@ public:
 };
 
 
-Node* findLeaf(Node* node, Board* board);
-bool rollout(Board* board, bool player);
+Node* findLeaf(Node* node, Board* board, float mctsParameter);
+bool rollout(Board* board, bool player, int rolloutPolicyParameter);
 void backpropagate(Node* node, int whiteWins, int blackWins);
-uint8_t rolloutPolicy(Board* board, bool player);
-uint8_t bestUCT(Node* node);
-uint8_t mostVisitedMove(Node* node);
-Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn);
+uint8_t rolloutPolicy(Board* board, bool player, int notPawnMoveProbability);
+uint8_t bestUCT(Node* node, float mctsParameter);
+uint8_t mostVisitedMove(Node* node, float mctsParameter);
+Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter);
 void nodeVisits(Node* node, int* moves);
 
 
-uint8_t mcts(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn){
-    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn);
-    uint8_t bestMove = mostVisitedMove(mctsTree);
+uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter){
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter);
+    uint8_t bestMove = mostVisitedMove(mctsTree, mctsParameter);
 
     delete(mctsTree);
     return bestMove;
 }
 
 
-void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution){
-    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn);
+void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution, int rolloutPolicyParameter){
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter);
     nodeVisits(mctsTree, distribution);
     delete(mctsTree);
 }
 
 
-uint8_t getMoveDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn){
-    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn);
-    uint8_t bestMove = mostVisitedMove(mctsTree);
-
-    delete(mctsTree);
-    return bestMove;
-}
-
-
-Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn){
+Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter){
     Node *root = new Node(nullptr, whiteTurn, 0);
     Board board = Board(state);
 
@@ -149,7 +140,7 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
         // for(int i = 0; i < simulationsPerRollout; i++){
         //     threads.emplace_back([&, i]() {
         //         Board boardCopy = board;
-        //         simulationResult[i] = rollout(&boardCopy, leaf->player);
+        //         simulationResult[i] = rollout(&boardCopy, leaf->player rolloutPolicyParameter);
         //     });
         // }
 
@@ -165,7 +156,7 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
         vector<bool> simulationResult(simulationsPerRollout);
         for(int i = 0; i < simulationsPerRollout; i++){
             Board boardCopy = board;
-            simulationResult[i] = rollout(&boardCopy, leaf->player);
+            simulationResult[i] = rollout(&boardCopy, leaf->player, rolloutPolicyParameter);
         }
         // =========== NORMAL END ===========
 
@@ -192,9 +183,9 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
 }
 
 
-Node* findLeaf(Node* node, Board* board){
+Node* findLeaf(Node* node, Board* board, float mctsParameter){
     while(node->expanded){
-        uint8_t bestMove = bestUCT(node);
+        uint8_t bestMove = bestUCT(node, mctsParameter);
 
         board->executeMove(bestMove, node->player);
         movesExecuted.push_back(bestMove);
@@ -208,7 +199,7 @@ Node* findLeaf(Node* node, Board* board){
     }
 
     node->expandNode(board);
-    uint8_t bestMove = bestUCT(node);
+    uint8_t bestMove = bestUCT(node), mctsParameter;
 
     board->executeMove(bestMove, node->player);
     movesExecuted.push_back(bestMove);
@@ -218,9 +209,9 @@ Node* findLeaf(Node* node, Board* board){
 }
 
 
-bool rollout(Board* board, bool player){
+bool rollout(Board* board, bool player, int rolloutPolicyParameter){
     for(int i = 0; i < 40; i++){
-        uint8_t bestMove = rolloutPolicy(board, player);
+        uint8_t bestMove = rolloutPolicy(board, player, rolloutPolicyParameter);
         board->executeMove(bestMove, player);
         // movesExecuted.push_back(bestMove);
         // number_of_tries ++;
@@ -295,7 +286,7 @@ inline uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool pl
 }
 
 
-inline uint8_t rolloutPolicy_probableNextMoveWithHalfProbabilityOfBestPawnMovement(Board* board, bool player){
+inline uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
 
@@ -327,8 +318,35 @@ inline uint8_t rolloutPolicy_probableNextMoveWithHalfProbabilityOfBestPawnMoveme
 }
 
 
-uint8_t rolloutPolicy(Board* board, bool player){
-    return rolloutPolicy_probableNextMoveWithHalfProbabilityOfBestPawnMovement(board, player);
+uint8_t rolloutPolicy(Board* board, bool player, int notPawnMoveProbability){
+    uint8_t possibleMoves[256];
+    size_t moveCount = 0;
+
+    bool pawnMove = rand() % notPawnMoveProbability;
+
+    if (pawnMove != 0){
+        return board->generateMoveOnShortestPath(player);
+    }
+
+    board->generateProbableMovesUnchecked(player, possibleMoves, moveCount);
+
+    int tries = 0;
+    // we can get a pawn move here as well, but I don't care!
+    while(tries < 3){
+        uint8_t move = possibleMoves[rand() % moveCount];
+
+        if(move >> 7){
+            uint8_t wallPlacement = move & 0b01111111;
+            if(!board->isValidWallPlacement(wallPlacement)){
+                tries++;
+                continue;
+            }
+        }
+        return move;
+    }
+
+    // possibleMoves[0] is a pawn movement and thus definitely valid.
+    return possibleMoves[0];
 }
 
 
@@ -341,7 +359,7 @@ void backpropagate(Node* node, int whiteWins, int blackWins){
 }
 
 
-uint8_t bestUCT(Node* node){
+uint8_t bestUCT(Node* node, float mctsParameter){
     float bestValue = -1;
     uint8_t bestMove = 0;
 
@@ -351,7 +369,7 @@ uint8_t bestUCT(Node* node){
             continue;
         }
 
-        float value = child->getValue(node->player);
+        float value = child->getValue(node->player, mctsParameter);
 
         if(value == -1){
             return move;
@@ -365,14 +383,14 @@ uint8_t bestUCT(Node* node){
 
     if(!bestMove){
         cout << "bestUCT infinite loop\n";
-        bestMove = bestUCT(node);
+        bestMove = bestUCT(node, mctsParameter);
     }
 
     return bestMove;
 }
 
 
-uint8_t mostVisitedMove(Node* node){
+uint8_t mostVisitedMove(Node* node, float mctsParameter){
     int bestValue = -1;
     uint8_t bestMove = 0;
 
@@ -380,12 +398,6 @@ uint8_t mostVisitedMove(Node* node){
         Node* child = node->children[move];
         if(!child){
             continue;
-        }
-
-        // cout << (int) move << " - whiteWins: " << child->whiteWins << ",\t\tblackWins: " << child->blackWins << "\n";
-
-        if(child->getValue(node->player) == -1){
-            return move;
         }
 
         if(child->whiteWins + child->blackWins > bestValue){
