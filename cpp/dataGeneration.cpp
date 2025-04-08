@@ -9,8 +9,8 @@
 #include <cstdio>
 using namespace std;
 
-int ROLLOUTS = 100;
-int SIMULATIONS_PER_ROLLOUT = 3;
+int ROLLOUTS = 10000;
+int SIMULATIONS_PER_ROLLOUT = 7;
 int ROLLOUT_PARAMETER = 4;
 float MCTS_PARAMETER = 0.5;
 
@@ -42,7 +42,7 @@ void saveBoardPosition(Board* board, string saveFileName, int* distribution){
 }
 
 
-void createDataSet(Board* board, string saveFileName, int* branchings, bool player, unordered_set<Board, BoardHasher>* seenBoards){
+void generateData(Board* board, string saveFileName, int* branchings, bool player, unordered_set<Board, BoardHasher>* seenBoards){
     if(board->getWinner()){
         return;
     }
@@ -60,7 +60,7 @@ void createDataSet(Board* board, string saveFileName, int* branchings, bool play
     for(int i = 1; i <= branchings[0]; i++){
         Board boardCopy = Board(*board);
         boardCopy.executeMove(nthBestMove(distribution, i), player);
-        createDataSet(&boardCopy, saveFileName, branchings + 1, !player, seenBoards);
+        generateData(&boardCopy, saveFileName, branchings + 1, !player, seenBoards);
     }
 }
 
@@ -95,25 +95,23 @@ void readInSaveFile(Board* boards, int distributions[][256], size_t& size, strin
 }
 
 
-int main(int argc, char const* argv[]) {
-    const std::string saveFileName = "bigData";
+void createDataSet() {
+    const std::string saveFileName = "dataset";
 
     // Delete the save file if it exists
     remove(saveFileName.c_str());
 
-    // Create and save data
-    int branchings[36] = {2, 2, 2, 2, 1, 1, 2, 1,
+    int branchings[40] = {2, 2, 2, 2, 1, 1, 2, 1,
                           1, 2, 1, 1, 2, 1, 1, 2,
                           1, 1, 1, 1, 1, 1, 1, 1,
                           1, 1, 1, 1, 1, 1, 1, 1,
-                          1, 1, 1, 0};  // 36 total
-
+                          1, 1, 1, 1, 1, 1, 1, 0};
     std::unordered_set<Board, BoardHasher> seenBoards;
 
 
     // Starting State
     Board board = Board();
-    createDataSet(&board, saveFileName, branchings, true, &seenBoards);
+    generateData(&board, saveFileName, branchings, true, &seenBoards);
     cout << "State #" << 1 << "/8\n";
     
     // The Sidewall Opening 
@@ -121,7 +119,7 @@ int main(int argc, char const* argv[]) {
     board.executeMove(24, true);
     board.executeMove(16, false);
     board.executeMove(179, true);
-    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    generateData(&board, saveFileName, branchings, false, &seenBoards);
     cout << "State #" << 2 << "/8\n";
     
     // The Rush Opening 
@@ -133,7 +131,7 @@ int main(int argc, char const* argv[]) {
     board.executeMove(24, true);
     board.executeMove(16, false);
     board.executeMove(163, true);
-    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    generateData(&board, saveFileName, branchings, false, &seenBoards);
     cout << "State #" << 3 << "/8\n";
 
     // The Reed Opening 
@@ -142,13 +140,13 @@ int main(int argc, char const* argv[]) {
     board.executeMove(16, false);
     board.executeMove(0b11101101, true);
     board.executeMove(16, false);
-    createDataSet(&board, saveFileName, branchings, true, &seenBoards);
+    generateData(&board, saveFileName, branchings, true, &seenBoards);
     cout << "State #" << 4 << "/8\n";
     
     // The Shatranj Opening 
     board = Board();
     board.executeMove(0b10000011, true);
-    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    generateData(&board, saveFileName, branchings, false, &seenBoards);
     cout << "State #" << 5 << "/8\n";
     
     // The Standard Opening
@@ -160,7 +158,7 @@ int main(int argc, char const* argv[]) {
     board.executeMove(24, true);
     board.executeMove(16, false);
     board.executeMove(0b11010100, true);
-    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    generateData(&board, saveFileName, branchings, false, &seenBoards);
     cout << "State #" << 6 << "/8\n";
     
     // The Shiller Opening
@@ -172,24 +170,28 @@ int main(int argc, char const* argv[]) {
     board.executeMove(24, true);
     board.executeMove(16, false);
     board.executeMove(0b10000100, true);
-    createDataSet(&board, saveFileName, branchings, false, &seenBoards);
+    generateData(&board, saveFileName, branchings, false, &seenBoards);
     cout << "State #" << 7 << "/8\n";
     
     // The Quick Box Opening
     board = Board();
     board.executeMove(24, true);
     board.executeMove(0b10001100, false);
-    createDataSet(&board, saveFileName, branchings, true, &seenBoards);
+    generateData(&board, saveFileName, branchings, true, &seenBoards);
     cout << "State #" << 8 << "/8\n";
 
-     // Step 3: Read from the save file
-    const size_t maxBoards = 100000; // adjust depending on how big the data can get
+    // Confirm number of datapoints generated
+    const size_t maxBoards = 100000;
     Board* boards = new Board[maxBoards];
     int (*distributions)[256] = new int[maxBoards][256];
     size_t size = 0;
 
     readInSaveFile(boards, distributions, size, saveFileName);
+    
+    std::cout << "Generated  " << size << " board positions successfully.\n";
+}
 
-    // Step 4: Print out the results
-    std::cout << "Read " << size << " board positions.\n";
+
+int main(int argc, char const* argv[]) {
+    createDataSet();
 }

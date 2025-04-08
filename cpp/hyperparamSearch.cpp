@@ -9,8 +9,8 @@
 #include <cstdio>
 using namespace std;
 
-int ROLLOUTS = 10000;
-int SIMULATIONS_PER_ROLLOUT = 3;
+int ROLLOUTS = 1000;
+int SIMULATIONS_PER_ROLLOUT = 10;
 
 
 bool simulateGame(Board board, int rolloutPolicyParameter1, float mctsParameter1, int rolloutPolicyParameter2, float mctsParameter2, bool whiteMove){
@@ -131,7 +131,7 @@ void initialSearch(int* rolloutPolicyParameter, float* mctsParameter){
         int rpps[3] = {cur_rpp + 1, cur_rpp, cur_rpp - 1};
         float mctsps[3] = {cur_mctsp / 1.5, cur_mctsp, cur_mctsp * 1.5};
 
-        int bestDifference = 2;
+        int bestDifference = 0;
         int best_rpp = cur_rpp;
         float best_mctsp = cur_mctsp;
 
@@ -166,7 +166,7 @@ void initialSearch(int* rolloutPolicyParameter, float* mctsParameter){
 
 int main(int argc, char const* argv[]) {
     int initialRolloutPolicyParameter = 4;
-    float initialMctsParameter = 1;
+    float initialMctsParameter = 0.5;
     initialSearch(&initialRolloutPolicyParameter, &initialMctsParameter);
     cout << initialRolloutPolicyParameter << " " << initialMctsParameter << "\n";
 }
