@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <string>
+#include <Eigen/Dense>
 
 #define RIGHT 0
 #define DOWN 256
@@ -10,6 +11,7 @@
 #define UP 768
 
 using namespace std;
+using namespace Eigen;
 
         // Pawn move representation
         // +--------+--------+--------+--------+--------+--------+--------+--------+
@@ -23,7 +25,7 @@ using namespace std;
 
 class Board
 {
-    private:
+    public:
 
     uint8_t whitePawn = 4;
     uint8_t blackPawn = 132;
@@ -932,6 +934,33 @@ class Board
         }
 
         saveData[0] = saveLength;
+    }
+
+
+    Array<uint8_t, 160, 1> toInputVector() const {
+        Array<uint8_t, 160, 1> input = Array<uint8_t, 160, 1>::Zero();
+
+        // Encode 4 8-bit values
+        input.segment<8>(0) = Map<const Array<uint8_t, 8, 1>>(&whitePawn);
+        input.segment<8>(8) = Map<const Array<uint8_t, 8, 1>>(&blackPawn);
+        input.segment<8>(16) = Map<const Array<uint8_t, 8, 1>>(&whiteWalls);
+        input.segment<8>(24) = Map<const Array<uint8_t, 8, 1>>(&blackWalls);
+
+        // Encode 128-bit wall state
+        for (int i = 0; i < 128; ++i) {
+            input(32 + i) = static_cast<uint8_t>(wallsOnBoard[i]);
+        }
+
+        return input;
+    }
+
+    uint8_t getWhiteWalls(){
+        return whiteWalls;
+    }
+
+
+    uint8_t getBlackWalls(){
+        return blackWalls;
     }
 
 

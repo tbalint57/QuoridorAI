@@ -127,6 +127,7 @@ void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool
 
 
 Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter){
+    srand(time(NULL));
     Node *root = new Node(nullptr, whiteTurn, 0);
     Board board = Board(state);
 

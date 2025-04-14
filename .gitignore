@@ -16,3 +16,5 @@ foreign_models
 cpp/dataGeneration
 cpp/hyperparamSearch
 cpp/dataset
+cpp/gaussianProcess
+libs

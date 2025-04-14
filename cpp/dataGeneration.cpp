@@ -361,9 +361,9 @@ void segmentDataset(string saveFileName, int trainLength, int validationLength) 
 
 
 // int main() {
+//     srand(time(NULL));
 //     createDataSetNatural();
 
-//     srand(time(NULL));
 //     padDataSetArtificially(true, "datasets/datasetWhite");
 //     padDataSetArtificially(false, "datasets/datasetBlack");
 
