@@ -106,7 +106,7 @@ def drawBoard(gameState):
 
 
 def getMoveAI(board):
-    moveChar = calculateBestMove(board.gameState, board.whiteTurn)
+    moveChar = calculateBestMove(board.gameState, board.whiteTurn, 50_000)
     return Game.translateMove(moveChar)
 
 

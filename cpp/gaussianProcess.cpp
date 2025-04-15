@@ -21,6 +21,7 @@ using input_vector = Array<uint8_t, 142, 1>;
 
 class Quoridor_GP {
     public:
+    Quoridor_GP(){}
 
     Quoridor_GP(double sigma2, double lambda, vector<double> kernel_params)
         : sigma2_(sigma2), lambda_(lambda), kernel_params(kernel_params) {}
@@ -329,12 +330,20 @@ void train_and_save_gp_model(int i) {
 
     string white_model_file = "GPmodels/whiteModel" + to_string(i);
     string black_model_file = "GPmodels/blackModel" + to_string(i);
+    string small_white_model_file = "GPmodels/whiteModelSmall" + to_string(i);
+    string small_black_model_file = "GPmodels/blackModelSmall" + to_string(i);
 
-    Quoridor_GP white_model = hyperparameter_search(white_train_file + ".train", white_train_file + ".val", true);
-    white_model.save(white_model_file);
+    // Quoridor_GP white_model = hyperparameter_search(white_train_file + ".train", white_train_file + ".val", true);
+    // white_model.save(white_model_file);
 
-    Quoridor_GP black_model = hyperparameter_search(black_train_file + ".train", black_train_file + ".val", false);
-    black_model.save(black_model_file);
+    // Quoridor_GP black_model = hyperparameter_search(black_train_file + ".train", black_train_file + ".val", false);
+    // black_model.save(black_model_file);
+
+    Quoridor_GP small_white_model = hyperparameter_search(white_train_file + ".val", white_train_file + ".train", true);
+    small_white_model.save(small_white_model_file);
+
+    Quoridor_GP small_black_model = hyperparameter_search(black_train_file + ".val", black_train_file + ".train", false);
+    small_black_model.save(small_black_model_file);
 }
 
 
@@ -353,6 +362,19 @@ void pre_train_models(){
 }
 
 
-int main() {
-    pre_train_models();
-}
+// int main() {
+//     // pre_train_models();
+//     Quoridor_GP model = Quoridor_GP::load("GPmodels/whiteModel0");
+//     Board board = Board({3, 5}, {4, 4}, {}, 10, 10);
+
+//     using namespace std::chrono;
+
+//     auto start = high_resolution_clock::now();
+//     for(int i = 0; i < 1; i++){
+//         model.predict(board.toInputVector(true));
+//     }
+//     auto end = high_resolution_clock::now();
+//     duration<double> elapsed = end - start;
+
+//     std::cout << "Execution time: " << elapsed.count() << " seconds\n";
+// }

@@ -7,7 +7,8 @@
 using namespace std;
 
 // For future reference, this is how to compile:
-// g++ -shared -Wl,-soname,interface -o cpp/interface.so -fPIC cpp/interface.cpp
+// g++ -shared -Wl,-soname,interface -o cpp/interface.so -fPIC cpp/interface.cpp -Ilibs/eigen-3.4.0
+
 
 extern "C" {
     struct Cell {
@@ -23,7 +24,7 @@ extern "C" {
     };
 
 
-    uint8_t calculateBestMove(Cell whitePawn, Cell blackPawn, Wall* walls, size_t length, int whiteWalls, int blackWalls, bool player, int roullouts){
+    uint8_t calculateBestMove(Cell whitePawn, Cell blackPawn, Wall* walls, size_t length, int whiteWalls, int blackWalls, bool player, int rollouts){
         vector<pair<bool, pair<int, int>>> wallsVector = {};
         for (size_t i = 0; i < length; i++){
             Wall wall = walls[i];
@@ -31,7 +32,7 @@ extern "C" {
         }
 
         Board game = Board({whitePawn.i, whitePawn.j}, {blackPawn.i, blackPawn.j}, wallsVector, whiteWalls, blackWalls);
-        return mcts(game, roullouts, player);
+        return mctsGetBestMove(game, rollouts, 5, player, 4, 0.5, true, 0);
     }
 
 

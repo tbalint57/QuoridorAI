@@ -5,22 +5,39 @@
 #include <thread>
 #include <atomic>
 #include <future>
-#include "board.cpp"
+#include <Eigen/Dense>
+#include <filesystem> 
+#include "gaussianProcess.cpp"
 
-/*
-    Modifications to talk about, supervision 2025.02.13.:
-        * integrated shortest path move (debugged)
-    
-    TODO:
-        * research and implement GAUSSIAN PROCESSES!!!
-
-*/
+using namespace Eigen;
 
 float MCTS_CONST = sqrt(2);
 
-vector<uint8_t> movesExecuted = {};
-int number_of_retries = 0;
-int number_of_tries = 0;
+int number_of_calls = 0;
+
+Quoridor_GP whiteModels[21];
+Quoridor_GP blackModels[21];
+Quoridor_GP smallWhiteModels[21];
+Quoridor_GP smallBlackModels[21];
+
+void loadModelsOnce() {
+    cout << "load in started" << endl;
+    static bool loaded = false;
+    if (loaded) return;
+
+    std::filesystem::path modelDir = std::filesystem::absolute("GPmodels");
+
+    for (int i = 0; i < 21; i++) {
+        whiteModels[i] = Quoridor_GP::load((modelDir / ("whiteModel" + to_string(i))).string());
+        blackModels[i] = Quoridor_GP::load((modelDir / ("blackModel" + to_string(i))).string());
+        smallWhiteModels[i] = Quoridor_GP::load((modelDir / ("whiteModelSmall" + to_string(i))).string());
+        smallBlackModels[i] = Quoridor_GP::load((modelDir / ("blackModelSmall" + to_string(i))).string());
+        cout << i << endl;
+    }
+
+    loaded = true;
+    cout << "load in successful" << endl;
+}
 
 class Node
 {
@@ -34,7 +51,18 @@ public:
     int heuristicValue;
     int depth;
 
-    void expandNode(Board* board){
+    VectorXd calculateHeuristicForChildren(Board* board, bool useSmallModel = true){
+        int wallsOnBoard = 20 - board->whiteWalls - board->blackWalls;
+        Quoridor_GP* model = player ? whiteModels + wallsOnBoard : blackModels + wallsOnBoard;
+        if (useSmallModel) {
+            model = player ? smallWhiteModels + wallsOnBoard : smallBlackModels + wallsOnBoard;
+        }
+
+        return model->predict(board->toInputVector(player));
+    }
+
+
+    void expandNode(Board* board, int heuristics = 0, int heuristicsWeight = 10){
         uint8_t possibleMoves[256];
         size_t moveCount = 0;
         board->generatePossibleMoves(this->player, possibleMoves, moveCount);
@@ -47,21 +75,30 @@ public:
             this->children[i] = nullptr;
         }
 
-        for(int i = 0; i < moveCount; i++){
-            uint8_t child = possibleMoves[i];
-            // Prioritise pawn moves a bit
-            float childHeuristicValue = board->calculateHeuristicForMove(child, this->player);
-
-            this->children[child] = new Node(this, !this->player, childHeuristicValue);
-        }
         this->expanded = true;
+
+        if (heuristics) {
+            number_of_calls++;
+            VectorXd childrenHeuristic = calculateHeuristicForChildren(board, heuristics==1);
+            for(int i = 0; i < moveCount; i++){
+                uint8_t child = possibleMoves[i];    
+                this->children[child] = new Node(this, !this->player, (float) childrenHeuristic(child) * heuristicsWeight);
+            }
+
+            return;
+        }
+
+        for(int i = 0; i < moveCount; i++){
+            uint8_t child = possibleMoves[i];    
+            this->children[child] = new Node(this, !this->player, 0);
+        }
     }
 
 
     float getValue(bool player, float mctsParameter){
         float n_node = (float)(this->whiteWins + this->blackWins);
 
-        if (!n_node){
+        if (n_node == 0){
             return -1;
         }
 
@@ -100,18 +137,18 @@ public:
 };
 
 
-Node* findLeaf(Node* node, Board* board, float mctsParameter);
-bool rollout(Board* board, bool player, int rolloutPolicyParameter);
+Node* findLeaf(Node* node, Board* board, float mctsParameter, bool useModelForUCT);
+bool rollout(Board* board, bool player, int rolloutPolicyParameter, int useModelForRollout);
 void backpropagate(Node* node, int whiteWins, int blackWins);
-uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter);
+uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter, int useModelForRollout);
 uint8_t bestUCT(Node* node, float mctsParameter);
 uint8_t mostVisitedMove(Node* node, float mctsParameter);
-Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter);
+Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT, int useModelForRollout);
 void nodeVisits(Node* node, int* moves);
 
 
-uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter){
-    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter);
+uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT = false, int useModelForRollout = 0){
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter, useModelForUCT, useModelForRollout);
     uint8_t bestMove = mostVisitedMove(mctsTree, mctsParameter);
 
     delete(mctsTree);
@@ -119,20 +156,22 @@ uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bo
 }
 
 
-void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution, int rolloutPolicyParameter, float mctsParameter){
-    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter);
+void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT = false, int useModelForRollout = 0){
+    Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter, useModelForUCT, useModelForRollout);
     nodeVisits(mctsTree, distribution);
     delete(mctsTree);
 }
 
 
-Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter){
+Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT, int useModelForRollout){
+    loadModelsOnce();
+
     srand(time(NULL));
     Node *root = new Node(nullptr, whiteTurn, 0);
     Board board = Board(state);
 
     while(rollouts > 0){
-        Node* leaf = findLeaf(root, &board, mctsParameter);
+        Node* leaf = findLeaf(root, &board, mctsParameter, useModelForUCT);
 
         // Threading does not work, too much overhead for thread creation: ~100 usec, while a single rollout is roughly 50 usec
         // // =========== THREADING START ==========
@@ -157,7 +196,7 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
         vector<bool> simulationResult(simulationsPerRollout);
         for(int i = 0; i < simulationsPerRollout; i++){
             Board boardCopy = board;
-            simulationResult[i] = rollout(&boardCopy, leaf->player, rolloutPolicyParameter);
+            simulationResult[i] = rollout(&boardCopy, leaf->player, rolloutPolicyParameter, useModelForRollout);
         }
         // =========== NORMAL END ===========
 
@@ -176,7 +215,6 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
         backpropagate(leaf, whiteWins, blackWins);
 
         board = state;
-        movesExecuted = {};
         rollouts--;
     }
 
@@ -184,14 +222,16 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
 }
 
 
-Node* findLeaf(Node* node, Board* board, float mctsParameter){
+Node* findLeaf(Node* node, Board* board, float mctsParameter, bool useModelForUCT){
+    int depth = 0;
     while(node->expanded){
         uint8_t bestMove = bestUCT(node, mctsParameter);
 
         board->executeMove(bestMove, node->player);
-        movesExecuted.push_back(bestMove);
 
         node = node->children[bestMove];
+
+        depth++;
     }
 
     // When a board has a winner, it must be a leaf
@@ -199,23 +239,27 @@ Node* findLeaf(Node* node, Board* board, float mctsParameter){
         return node;
     }
 
-    node->expandNode(board);
+    int modelUsage = 0;
+    if (useModelForUCT) {
+        if(depth <= 2) modelUsage = 1;
+        if(depth == 0) modelUsage = 2;
+    }
+
+
+    node->expandNode(board, 0, depth ? 10 : 100);
     uint8_t bestMove = bestUCT(node, mctsParameter);
 
     board->executeMove(bestMove, node->player);
-    movesExecuted.push_back(bestMove);
 
     node = node->children[bestMove];
     return node;
 }
 
 
-bool rollout(Board* board, bool player, int rolloutPolicyParameter){
+bool rollout(Board* board, bool player, int rolloutPolicyParameter, int useModelForRollout){
     for(int i = 0; i < 40; i++){
-        uint8_t bestMove = rolloutPolicy(board, player, rolloutPolicyParameter);
+        uint8_t bestMove = rolloutPolicy(board, player, rolloutPolicyParameter, useModelForRollout);
         board->executeMove(bestMove, player);
-        // movesExecuted.push_back(bestMove);
-        // number_of_tries ++;
 
         player = !player;
 
@@ -228,7 +272,23 @@ bool rollout(Board* board, bool player, int rolloutPolicyParameter){
 }
 
 
-inline uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
+uint8_t generateMoveFromModel(Board* board, bool player, Quoridor_GP* model){
+    VectorXd pred = model->predict(board->toInputVector(player));
+    double r = ((double) rand() /(RAND_MAX));
+    int move = 0;
+
+    for(;move < 256; move++){
+        r -= pred(move);
+        if(r <= 0){
+            break;
+        }
+    }
+
+    return move;
+}
+
+
+uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
     int tries = 0;
@@ -253,7 +313,7 @@ inline uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
 }
 
 
-inline uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool player){
+uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
     int tries = 0;
@@ -287,7 +347,7 @@ inline uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool pl
 }
 
 
-inline uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
+uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
 
@@ -319,14 +379,23 @@ inline uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
 }
 
 
-uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter){
+uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter, int useModelForRollout){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
 
-    bool pawnMove = rand() % rolloutPolicyParameter;
+    int pawnMove = rand() % rolloutPolicyParameter;
 
     if (pawnMove != 0){
         return board->generateMoveOnShortestPath(player);
+    }
+
+    if (useModelForRollout){
+        int modelMove = rand() % useModelForRollout;
+        if (!modelMove) {
+            int wallsOnBoard = 20 - board->whiteWalls - board->blackWalls;
+            Quoridor_GP *model = player ? smallWhiteModels + wallsOnBoard : smallBlackModels + wallsOnBoard;
+            return generateMoveFromModel(board, player, model);
+        }
     }
 
     board->generateProbableMovesUnchecked(player, possibleMoves, moveCount);
@@ -419,4 +488,22 @@ void nodeVisits(Node* node, int* moves){
 
         moves[move] = child->whiteWins + child->blackWins;
     }
+}
+
+
+int main() {
+    srand(time(NULL));
+    // pre_train_models();
+    Board board = Board();
+    board.executeMove(24, true);
+
+    using namespace std::chrono;
+
+    auto start = high_resolution_clock::now();
+    cout << (int) mctsGetBestMove(board, 50000, 5, false, 4, 0.5, true, 0) << endl;
+    cout << number_of_calls << endl;
+    auto end = high_resolution_clock::now();
+    duration<double> elapsed = end - start;
+
+    std::cout << "Execution time: " << elapsed.count() << " seconds\n";
 }
