@@ -6,21 +6,24 @@
 #include <random>
 #include <chrono>
 #include <fstream>
-#include "dataGeneration.cpp"
+#include <thread>
+#include "board.cpp"
+#include <string>
+#include <iomanip>
+#include <cmath>
 
 // This file uses snake case, maybe I will change the other code in the future, but this is so much easier to read...
  
 using namespace Eigen;
 using namespace std;
 
-using input_vector = Array<uint8_t, 160, 1>;
-
+using input_vector = Array<uint8_t, 142, 1>;
 
 class Quoridor_GP {
     public:
 
-    Quoridor_GP(double sigma2, double lambda)
-        : sigma2_(sigma2), lambda_(lambda) {}
+    Quoridor_GP(double sigma2, double lambda, vector<double> kernel_params)
+        : sigma2_(sigma2), lambda_(lambda), kernel_params(kernel_params) {}
 
 
     void fit(const vector<input_vector>& X_train, const MatrixXd& Y_train) {
@@ -36,6 +39,16 @@ class Quoridor_GP {
     VectorXd predict(const input_vector& x_star) const {
         VectorXd k_star = compute_kernel_vector(x_star);
         VectorXd output = k_star.transpose() * K_inv_;
+
+        // Eliminate illegal pawn moves
+        uint8_t possiblePawnMoves[12] = {1, 2, 5, 6, 16, 24, 32, 40, 17, 21, 25, 29};
+        for(int i = 0; i < 12; i++){
+            uint8_t m = possiblePawnMoves[i];
+            if (!((x_star(9) == m) || (x_star(10) == m) || (x_star(11) == m) || (x_star(12) == m) || (x_star(13) == m))) {
+                output(m) = 0;
+            }
+        }
+
         return normalise_output(output);
     }
 
@@ -46,12 +59,15 @@ class Quoridor_GP {
         // Save hyperparametres
         out.write((char*) &sigma2_, sizeof(double));
         out.write((char*) &lambda_, sizeof(double));
+        size_t kernel_param_size = kernel_params.size();
+        out.write((char*) &kernel_param_size, sizeof(size_t));
+        out.write((char*) kernel_params.data(), sizeof(double) * kernel_param_size);
 
         // Save X_train
         size_t num_inputs = X_train_.size();
         out.write((char*) &num_inputs, sizeof(size_t));
         for (auto& x : X_train_) {
-            out.write((char*) x.data(), sizeof(uint8_t) * 160);
+            out.write((char*) x.data(), sizeof(uint8_t) * 142);
         }
 
         // Save K_inv_
@@ -72,14 +88,20 @@ class Quoridor_GP {
         double sigma2, lambda;
         in.read((char*) &sigma2, sizeof(double));
         in.read((char*) &lambda, sizeof(double));
-        Quoridor_GP model(sigma2, lambda);
+        size_t kernel_param_size;
+        in.read((char*) &kernel_param_size, sizeof(size_t));
+        vector<double> kernel_params(kernel_param_size);
+        in.read((char*) kernel_params.data(), sizeof(double) * kernel_param_size);
+    
+        // Initialise model
+        Quoridor_GP model(sigma2, lambda, kernel_params);
 
         // Load X_train
         size_t num_inputs;
         in.read((char*) &num_inputs, sizeof(size_t));
         model.X_train_.resize(num_inputs);
         for (size_t i = 0; i < num_inputs; ++i) {
-            in.read((char*) model.X_train_[i].data(), sizeof(uint8_t) * 160);
+            in.read((char*) model.X_train_[i].data(), sizeof(uint8_t) * 142);
         }
 
         // Load K_inv_
@@ -93,21 +115,57 @@ class Quoridor_GP {
         return model;
     }
 
+
+    void print_model_info() const {
+        cout << fixed << setprecision(4);
+        cout << "Sigma2: " << sigma2_
+             << ", Lambda: " << lambda_
+             << ", Kernel Params: [";
+    
+        for (size_t i = 0; i < kernel_params.size(); ++i) {
+            cout << kernel_params[i];
+            if (i < kernel_params.size() - 1) cout << ", ";
+        }
+        cout << "]" << endl;
+    }
+
     private:
 
     double sigma2_;
     double lambda_;
+    vector<double> kernel_params;
     vector<input_vector> X_train_;
     MatrixXd K_inv_;
 
 
-    int hamming_distance(const input_vector& x1, const input_vector& x2) const {
-        return (x1 != x2).count();
+    int wall_difference(const input_vector& x1, const input_vector& x2) const {
+        int difference = 0;
+        for(int i = 14; i < 142; i++){
+            difference += x1(i) & x2(i);
+        }
+        return difference;
     }
 
 
-    double hamming_kernel(const input_vector& x1, const input_vector& x2) const {
-        int dist = hamming_distance(x1, x2);
+    double custom_kernel(const input_vector& x1, const input_vector& x2) const {
+        // Pawn placements
+        double dist = abs(x1(0) - x2(0)) + abs(x1(1) - x2(1));
+
+        // Wall difference
+        dist += kernel_params[0] * wall_difference(x1, x2);
+
+        // Players' wall count
+        dist += kernel_params[1] * (abs(x1(2) - x2(2)) + abs(x1(3) - x2(3)));
+
+        // Players' distance to goal
+        dist += kernel_params[2] * (abs(x1(4) - x2(4)) + abs(x1(5) - x2(5)));
+
+        // Distance between pawns
+        dist += kernel_params[3] * (abs(x1(6) - x2(6)));
+
+        // Players' number of available pawn movements
+        dist += kernel_params[4] * (abs(x1(7) - x2(7)) + abs(x1(8) - x2(8)));
+
         return sigma2_ * exp(-(double) dist / lambda_);
     }
 
@@ -117,7 +175,7 @@ class Quoridor_GP {
         MatrixXd K(N, N);
         for (int i = 0; i < N; ++i) {
             for (int j = i; j < N; ++j) {
-                double k = hamming_kernel(inputs[i], inputs[j]);
+                double k = custom_kernel(inputs[i], inputs[j]);
                 K(i, j) = K(j, i) = k;
             }
         }
@@ -129,7 +187,7 @@ class Quoridor_GP {
         int N = X_train_.size();
         VectorXd k_star(N);
         for (int i = 0; i < N; ++i) {
-            k_star(i) = hamming_kernel(x_star, X_train_[i]);
+            k_star(i) = custom_kernel(x_star, X_train_[i]);
         }
         return k_star;
     }
@@ -147,7 +205,7 @@ class Quoridor_GP {
 };
 
 
-tuple<vector<input_vector>, MatrixXd> load_dataset(const string& filename) {
+tuple<vector<input_vector>, MatrixXd> load_dataset(const string& filename, bool player) {
     const size_t max_boards = 1000;
     Board* boards = new Board[max_boards];
     int (*distributions)[256] = new int[max_boards][256];
@@ -159,7 +217,7 @@ tuple<vector<input_vector>, MatrixXd> load_dataset(const string& filename) {
     MatrixXd Y(size, 256);
 
     for (size_t i = 0; i < size; ++i) {
-        input_vector vec = boards[i].toInputVector();
+        input_vector vec = boards[i].toInputVector(player);
         X.push_back(vec);
 
         for (int j = 0; j < 256; ++j) {
@@ -174,62 +232,103 @@ tuple<vector<input_vector>, MatrixXd> load_dataset(const string& filename) {
 }
 
 
-Quoridor_GP hyperparameter_search(string train_file, string val_file) {
-    // Load train and validation sets
-    auto [X_train, Y_train] = load_dataset(train_file);
-    auto [X_val, Y_val] = load_dataset(val_file);
+Quoridor_GP hyperparameter_search(const string& train_file, const string& val_file, bool player, int num_trials = 100) {
+    auto [X_train, Y_train] = load_dataset(train_file, player);
+    auto [X_val, Y_val] = load_dataset(val_file, player);
 
-    // Grid search ranges
-    vector<double> sigma2_values = {1.0, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01};
-    vector<double> lambda_values = {1.0, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01};
+    random_device rd;
+    mt19937 gen(rd());
 
-    // Loss is at max 4
-    double best_loss = 1000000.0;
+    uniform_real_distribution<double> dist_sigma2(5.0, 50.0);
+    uniform_real_distribution<double> dist_lambda(5.0, 20.0);
+    uniform_real_distribution<double> dist_kernel_param(0.5, 2.0);
+
+    const int kernel_param_count = 5; // Number of kernel parameters
+
+    double best_loss = 1e9;
     double best_sigma2 = 0.0;
     double best_lambda = 0.0;
+    vector<double> best_kernel_params;
 
-    for (double sigma2 : sigma2_values) {
-        for (double lambda : lambda_values) {
-            Quoridor_GP model(sigma2, lambda);
-            model.fit(X_train, Y_train);
+    for (int trial = 0; trial < num_trials; ++trial) {
+        double sigma2 = dist_sigma2(gen);
+        double lambda = dist_lambda(gen);
+        vector<double> kernel_params(kernel_param_count);
+        for (int i = 0; i < kernel_param_count; ++i) {
+            kernel_params[i] = dist_kernel_param(gen);
+        }
 
-            double total_loss = 0.0;
+        Quoridor_GP model(sigma2, lambda, kernel_params);
+        model.fit(X_train, Y_train);
 
-            for (size_t i = 0; i < X_val.size(); ++i) {
-                VectorXd pred = model.predict(X_val[i]);
-                VectorXd actual = Y_val.row(i) / Y_val.row(i).sum();
-                double loss = (pred - actual).squaredNorm();
-                total_loss += loss;
+        double total_loss = 0.0;
+
+        for (size_t i = 0; i < X_val.size(); ++i) {
+            VectorXd pred = model.predict(X_val[i]);
+
+            VectorXd actual = Y_val.row(i);
+            double sum = actual.sum();
+            if (sum > 0.0) {
+                actual /= sum;
+            } else {
+                actual = VectorXd::Constant(256, 1.0 / 256);
             }
 
-            double avg_loss = total_loss / X_val.size();
+            total_loss += (pred - actual).squaredNorm();
+        }
 
-            if (avg_loss < best_loss) {
-                best_loss = avg_loss;
-                best_sigma2 = sigma2;
-                best_lambda = lambda;
-                cout << "New best (sigma2=" << sigma2 << ", lambda=" << lambda << ") with loss = " << avg_loss << endl;
-            }
+        double avg_loss = total_loss / X_val.size();
+
+        if (avg_loss < best_loss) {
+            best_loss = avg_loss;
+            best_sigma2 = sigma2;
+            best_lambda = lambda;
+            best_kernel_params = kernel_params;
         }
     }
 
-    Quoridor_GP best_model(best_sigma2, best_lambda);
+    Quoridor_GP best_model(best_sigma2, best_lambda, best_kernel_params);
     best_model.fit(X_train, Y_train);
     return best_model;
 }
 
- 
-int main() {
-    srand(time(NULL));
-    for(int i = 0; i < 21; i++){
-        string whiteTrain = "datasets/datasetWhite" + to_string(i) + ".train";
-        string whiteVal = "datasets/datasetWhite" + to_string(i) + ".val";
-        string whiteSave = "GPmodels/whiteModel" + to_string(i); 
-        hyperparameter_search(whiteTrain, whiteVal).save(whiteSave);
 
-        string blackTrain = "datasets/datasetBlack" + to_string(i) + ".train";
-        string blackVal = "datasets/datasetBlack" + to_string(i) + ".val";
-        string blackSave = "GPmodels/blackModel" + to_string(i); 
-        hyperparameter_search(blackTrain, blackVal).save(blackSave);
+void train_and_save_gp_model(int i) {
+    string white_train_file = "datasets/datasetWhite" + to_string(i);
+    string black_train_file = "datasets/datasetBlack" + to_string(i);
+
+    string white_model_file = "GPmodels/whiteModel" + to_string(i);
+    string black_model_file = "GPmodels/blackModel" + to_string(i);
+
+    Quoridor_GP white_model = hyperparameter_search(white_train_file + ".train", white_train_file + ".val", true);
+    white_model.save(white_model_file);
+
+    Quoridor_GP black_model = hyperparameter_search(black_train_file + ".train", black_train_file + ".val", false);
+    black_model.save(black_model_file);
+}
+
+
+void pre_train_models(){
+    using namespace std::chrono;
+
+    vector<thread> threads;
+    auto t0 = high_resolution_clock::now();
+
+    for (int i = 0; i <= 20; ++i) {
+        threads.emplace_back(train_and_save_gp_model, i);
     }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    auto t1 = high_resolution_clock::now();
+    double total_time = duration_cast<duration<double>>(t1 - t0).count();
+
+    cout << "Total time for parallel hyperparameter search and saving: " << total_time << " seconds." << endl;
+}
+
+
+int main() {
+    pre_train_models();
 }

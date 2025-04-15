@@ -12,6 +12,7 @@
 
 using namespace std;
 using namespace Eigen;
+using input_vector = Array<uint8_t, 142, 1>;
 
         // Pawn move representation
         // +--------+--------+--------+--------+--------+--------+--------+--------+
@@ -937,19 +938,49 @@ class Board
     }
 
 
-    Array<uint8_t, 160, 1> toInputVector() const {
-        Array<uint8_t, 160, 1> input = Array<uint8_t, 160, 1>::Zero();
+    input_vector toInputVector(bool player) {
+        input_vector input = input_vector::Zero();
 
         // Encode 4 8-bit values
-        input.segment<8>(0) = Map<const Array<uint8_t, 8, 1>>(&whitePawn);
-        input.segment<8>(8) = Map<const Array<uint8_t, 8, 1>>(&blackPawn);
-        input.segment<8>(16) = Map<const Array<uint8_t, 8, 1>>(&whiteWalls);
-        input.segment<8>(24) = Map<const Array<uint8_t, 8, 1>>(&blackWalls);
+        input(0) = whitePawn;
+        input(1) = blackPawn;
+        input(2) = whiteWalls;
+        input(3) = blackWalls;
 
         // Encode 128-bit wall state
         for (int i = 0; i < 128; ++i) {
-            input(32 + i) = static_cast<uint8_t>(wallsOnBoard[i]);
+            input(14 + i) = (uint8_t) wallsOnBoard[i];
         }
+
+        // Distance to goal
+        uint8_t whiteDistance = bfs(true);
+        uint8_t blackDistance = bfs(false);
+
+        // Possible pawn movements
+        uint8_t whitePawnMoves[5] = {0};
+        uint8_t blackPawnMoves[5] = {0};
+        size_t numWhitePawnMoves = 0;
+        size_t numBlackPawnMoves = 0;
+        generatePossiblePawnMoves(true, whitePawnMoves, numWhitePawnMoves);
+        generatePossiblePawnMoves(false, blackPawnMoves, numBlackPawnMoves);
+
+        // Manhattan-distance between 2 pawns
+        uint8_t distanceBetweenPawns = max(whitePawn >> 4, blackPawn >> 4) - min(whitePawn >> 4, blackPawn >> 4) + max(whitePawn & 0x0f, blackPawn & 0x0f) - min(whitePawn & 0x0f, blackPawn & 0x0f);
+
+        // Encode additional information
+        input(4) = whiteDistance;
+        input(5) = blackDistance;
+        input(6) = distanceBetweenPawns;
+        input(7) = (uint8_t) numWhitePawnMoves;
+        input(8) = (uint8_t) numBlackPawnMoves;
+
+        // Encode legal pawn moves
+        uint8_t *playerPawnMoves = player ? whitePawnMoves : blackPawnMoves;
+        input(9) = playerPawnMoves[0];
+        input(10) = playerPawnMoves[1];
+        input(11) = playerPawnMoves[2];
+        input(12) = playerPawnMoves[3];
+        input(13) = playerPawnMoves[4];
 
         return input;
     }
