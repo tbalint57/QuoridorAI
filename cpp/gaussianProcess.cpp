@@ -309,10 +309,7 @@ void train_and_save_gp_model(int i) {
 
 
 void pre_train_models(){
-    using namespace std::chrono;
-
     vector<thread> threads;
-    auto t0 = high_resolution_clock::now();
 
     for (int i = 0; i <= 20; ++i) {
         threads.emplace_back(train_and_save_gp_model, i);
@@ -322,10 +319,7 @@ void pre_train_models(){
         t.join();
     }
 
-    auto t1 = high_resolution_clock::now();
-    double total_time = duration_cast<duration<double>>(t1 - t0).count();
-
-    cout << "Total time for parallel hyperparameter search and saving: " << total_time << " seconds." << endl;
+    cout << "pre-training finished" << endl;
 }
 
 
