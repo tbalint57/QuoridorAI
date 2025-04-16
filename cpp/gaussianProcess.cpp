@@ -333,11 +333,11 @@ void train_and_save_gp_model(int i) {
     string small_white_model_file = "GPmodels/whiteModelSmall" + to_string(i);
     string small_black_model_file = "GPmodels/blackModelSmall" + to_string(i);
 
-    // Quoridor_GP white_model = hyperparameter_search(white_train_file + ".train", white_train_file + ".val", true);
-    // white_model.save(white_model_file);
+    Quoridor_GP white_model = hyperparameter_search(white_train_file + ".train", white_train_file + ".val", true);
+    white_model.save(white_model_file);
 
-    // Quoridor_GP black_model = hyperparameter_search(black_train_file + ".train", black_train_file + ".val", false);
-    // black_model.save(black_model_file);
+    Quoridor_GP black_model = hyperparameter_search(black_train_file + ".train", black_train_file + ".val", false);
+    black_model.save(black_model_file);
 
     Quoridor_GP small_white_model = hyperparameter_search(white_train_file + ".val", white_train_file + ".train", true);
     small_white_model.save(small_white_model_file);
@@ -360,21 +360,3 @@ void pre_train_models(){
 
     cout << "pre-training finished" << endl;
 }
-
-
-// int main() {
-//     // pre_train_models();
-//     Quoridor_GP model = Quoridor_GP::load("GPmodels/whiteModel0");
-//     Board board = Board({3, 5}, {4, 4}, {}, 10, 10);
-
-//     using namespace std::chrono;
-
-//     auto start = high_resolution_clock::now();
-//     for(int i = 0; i < 1; i++){
-//         model.predict(board.toInputVector(true));
-//     }
-//     auto end = high_resolution_clock::now();
-//     duration<double> elapsed = end - start;
-
-//     std::cout << "Execution time: " << elapsed.count() << " seconds\n";
-// }

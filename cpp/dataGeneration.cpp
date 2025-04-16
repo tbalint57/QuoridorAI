@@ -71,36 +71,6 @@ void generateData(Board* board, string saveFileNameWhite, string saveFileNameBla
 }
 
 
-void readInSaveFile(Board* boards, int distributions[][256], size_t& size, string saveFileName){
-    ifstream file(saveFileName, ios::in | ios::binary);
-
-    char ch;
-    while (file.get(ch)) {
-        size_t board_size = ch - 1;
-        char whitePawn, blackPawn, whiteWalls, blackWalls;
-
-        file.get(whitePawn);
-        file.get(blackPawn);
-        file.get(whiteWalls);
-        file.get(blackWalls);
-
-        char WallsOnBoard[20];
-        size_t numberOfWallsOnBoard = board_size - 4;
-
-        for(int i = 0; i < numberOfWallsOnBoard; i++){
-            file.get(WallsOnBoard[i]);
-        }
-        boards[size] = Board(whitePawn, blackPawn, whiteWalls, blackWalls, WallsOnBoard, numberOfWallsOnBoard);
-
-        file.read((char*)distributions[size], 256 * sizeof(int));
-
-        size++;
-    }
-
-    file.close();
-}
-
-
 Board createRandomPosition(uint8_t whiteWalls, uint8_t blackWalls){
     srand(time(NULL));
     Board board = Board();

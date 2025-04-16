@@ -21,10 +21,11 @@ Quoridor_GP smallWhiteModels[21];
 Quoridor_GP smallBlackModels[21];
 
 void loadModelsOnce() {
-    cout << "load in started" << endl;
     static bool loaded = false;
     if (loaded) return;
+    cout << "load in started" << endl;
 
+    // Absolute path needed for UI integration, figuring this out took an embarassingly long time (roughly 3 hours), if anyone reads this feel free to roast.
     std::filesystem::path modelDir = std::filesystem::absolute("GPmodels");
 
     for (int i = 0; i < 21; i++) {
@@ -32,7 +33,6 @@ void loadModelsOnce() {
         blackModels[i] = Quoridor_GP::load((modelDir / ("blackModel" + to_string(i))).string());
         smallWhiteModels[i] = Quoridor_GP::load((modelDir / ("whiteModelSmall" + to_string(i))).string());
         smallBlackModels[i] = Quoridor_GP::load((modelDir / ("blackModelSmall" + to_string(i))).string());
-        cout << i << endl;
     }
 
     loaded = true;
@@ -488,22 +488,4 @@ void nodeVisits(Node* node, int* moves){
 
         moves[move] = child->whiteWins + child->blackWins;
     }
-}
-
-
-int main() {
-    srand(time(NULL));
-    // pre_train_models();
-    Board board = Board();
-    board.executeMove(24, true);
-
-    using namespace std::chrono;
-
-    auto start = high_resolution_clock::now();
-    cout << (int) mctsGetBestMove(board, 50000, 5, false, 4, 0.5, true, 0) << endl;
-    cout << number_of_calls << endl;
-    auto end = high_resolution_clock::now();
-    duration<double> elapsed = end - start;
-
-    std::cout << "Execution time: " << elapsed.count() << " seconds\n";
 }
