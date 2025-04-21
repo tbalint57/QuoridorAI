@@ -11,7 +11,7 @@
 
 using namespace Eigen;
 
-float MCTS_CONST = sqrt(2);
+float MCTS_CONST = 0.25;
 
 int number_of_calls = 0;
 
@@ -49,7 +49,6 @@ public:
     int whiteWins;
     int blackWins;
     int heuristicValue;
-    int depth;
 
     VectorXd calculateHeuristicForChildren(Board* board, bool useSmallModel = true){
         int wallsOnBoard = 20 - board->whiteWalls - board->blackWalls;
@@ -117,7 +116,6 @@ public:
         this->whiteWins = 0;
         this->blackWins = 0;
         this->heuristicValue = heuristicValue;
-        this->depth = parent ? parent->depth + 1 : 0;
     }
 
 
@@ -147,7 +145,7 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
 void nodeVisits(Node* node, int* moves);
 
 
-uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT = false, int useModelForRollout = 0){
+uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT = true, int useModelForRollout = 0){
     Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter, useModelForUCT, useModelForRollout);
     uint8_t bestMove = mostVisitedMove(mctsTree, mctsParameter);
 
@@ -156,7 +154,7 @@ uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bo
 }
 
 
-void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT = false, int useModelForRollout = 0){
+void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT = true, int useModelForRollout = 0){
     Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter, useModelForUCT, useModelForRollout);
     nodeVisits(mctsTree, distribution);
     delete(mctsTree);
