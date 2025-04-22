@@ -160,6 +160,7 @@ class MCTS
         if (modelDirectory == ""){
             return;
         }
+        
         std::filesystem::path modelDir = std::filesystem::absolute(modelDirectory);
     
         for (int i = 0; i < 21; i++) {
