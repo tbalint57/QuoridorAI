@@ -24,24 +24,36 @@ using input_vector = Array<uint8_t, 142, 1>;
         // |    1   |  isHor |             i            |             j            |
         // +--------+--------+--------+--------+--------+--------+--------+--------+
 
+
+/**
+ * Represents the game board for Quoridor.
+ * Handles pawn movements, wall placements, game state, and pathfinding logic.
+ */
 class Board
 {
     public:
 
-    uint8_t whitePawn = 4;
-    uint8_t blackPawn = 132;
+    uint8_t whitePawn = 4;      ///< Position of the white pawn (0-255 encoded)
+    uint8_t blackPawn = 132;    ///< Position of the black pawn (0-255 encoded)
 
-    uint8_t whiteWalls = 10;
-    uint8_t blackWalls = 10;
+    uint8_t whiteWalls = 10;    ///< Number of remaining walls for white
+    uint8_t blackWalls = 10;    ///< Number of remaining walls for black
 
-    bool wallsOnBoard[128] = {false};
-    bool takenWallPlaces[128] = {false};
-    bool walledOffCells[904] = {false};
+    bool wallsOnBoard[128] = {false};       ///< Tracks placed walls
+    bool takenWallPlaces[128] = {false};    ///< Marks invalid wall placements
+    bool walledOffCells[904] = {false};     ///< Precomputed blockages in all directions
+
+    char winner = 0;            ///< 'w' = white win, 'b' = black win, 0 = game ongoing
 
     friend struct BoardHasher;
 
-    char winner = 0;
 
+    /**
+     * Performs DFS to determine if the given player has a path to goal.
+     *
+     * @param player true: white, false: black
+     * @return true if a valid path exists
+     */
     bool dfs(bool player){
         uint8_t startCell = player ? whitePawn : blackPawn;
         // write in that this is fatser than vector
@@ -107,6 +119,12 @@ class Board
     }
 
 
+    /**
+     * Computes the shortest path length to the goal using BFS.
+     *
+     * @param player true: white, false: black
+     * @return Number of steps to goal
+     */
     int bfs(bool player){
         uint8_t startCell = player ? whitePawn : blackPawn;
         uint8_t todo[81] = {};
@@ -565,9 +583,12 @@ class Board
     }
 
 
-    public:
-    
-
+    /**
+     * Checks if the wall placement is valid (does not block all paths to goals).
+     *
+     * @param wallPlacement Wall index (0-127)
+     * @return true if wall placement is valid
+     */
     inline bool isValidWallPlacement(uint8_t wallPlacement){
         bool isHorizontal = wallPlacement & 0x40;
         uint8_t i = (wallPlacement & 56) >> 3;
@@ -624,19 +645,16 @@ class Board
         else{
             executePawnMove(move, player);
         }
-        
-        int iWhite = (whitePawn & 0xf0) >> 4;
-        int jWhite = whitePawn & 0x0f;
-        int iBlack = (blackPawn & 0xf0) >> 4;
-        int jBlack = blackPawn & 0x0f;
     }
     
 
     /**
-     * Generate possible move for given player
-     * 
+     * Generate all legal pawn and wall moves for a player.
+     *
      * @param player true: white, false: black
-     * @return possible moves
+     * @param possibleMoves Array to hold moves
+     * @param moveCount Outputs the number of generated moves
+     * @return Number of pawn moves generated
      */
     int generatePossibleMoves(bool player, uint8_t* possibleMoves, size_t& moveCount){        
         generatePossiblePawnMoves(player, possibleMoves, moveCount);
@@ -810,7 +828,7 @@ class Board
 
 
     /**
-     * Place a wall if move is valid
+     * Places a wall if move is valid
      * 
      * @param i vertical coordinate
      * @param j horizontal coordinate
@@ -829,7 +847,7 @@ class Board
     
 
     /**
-     * Move pawn if move is valid
+     * Moves pawn if move is valid
      * 
      * @param verticalMovement vertical movement
      * @param horizontalMovement horizontal movement
@@ -850,7 +868,7 @@ class Board
      * Translate move into human readable form
      * 
      * @param move move encoded in a byte
-     * @return move described in a string in the forms: Pawn(vert,hor) Wall(i-j) Wall(i|j)
+     * @return string describing the move (e.g., "Pawn(1,0)", "Wall(4|3)")
      */
     static string translateMove(uint8_t move){
         string moveString = "";
@@ -876,34 +894,22 @@ class Board
     }
 
 
-    Board& operator=(const Board& other) {
-        if (this != &other) {
-            this->whitePawn = other.whitePawn;
-            this->blackPawn = other.blackPawn;
-
-            for (int i = 0; i < 128; i++) {
-                this->wallsOnBoard[i] = other.wallsOnBoard[i];
-                this->takenWallPlaces[i] = other.takenWallPlaces[i];
-            }
-
-            for (int i = 0; i < 904; i++) {
-                this->walledOffCells[i] = other.walledOffCells[i];
-            }
-
-            this->whiteWalls = other.whiteWalls;
-            this->blackWalls = other.blackWalls;
-
-            this->winner = other.winner;
-        }
-        return *this;
-    }
-
-
+    /**
+     * Returns the winner of the game.
+     *
+     * @return 'w' = white, 'b' = black, 0 = no winner yet
+     */
     char getWinner(){
         return this->winner;
     }
 
 
+    /**
+     * Returns whether white is closer to their goal than black.
+     *
+     * @param player true: white, false: black
+     * @return true if white is closer, false if black is closer
+     */
     bool whiteCloser(bool player){
         int whitePathLength = bfs(true);
         int blackPathLength = bfs(false);
@@ -938,6 +944,12 @@ class Board
     }
 
 
+    /**
+     * Encodes the current board into a 142-element vector for GP input.
+     *
+     * @param player true: white, false: black
+     * @return input_vector Eigen array encoding board features
+     */
     input_vector toInputVector(bool player) {
         input_vector input = input_vector::Zero();
 
@@ -985,16 +997,13 @@ class Board
         return input;
     }
 
-    uint8_t getWhiteWalls(){
-        return whiteWalls;
-    }
 
-
-    uint8_t getBlackWalls(){
-        return blackWalls;
-    }
-
-
+    /**
+     * Equality operator for board comparison.
+     *
+     * @param other Another board instance
+     * @return true if all state variables are equal
+     */
     bool operator==(const Board& other) const {
         bool whitePawn = this->whitePawn == other.whitePawn;
         bool blackPawn = this->blackPawn == other.blackPawn;
@@ -1008,18 +1017,36 @@ class Board
     }
 
 
-    void printState() {
-        cout << "pawns: " << (int)whitePawn << " " << (int)blackPawn << "\n";
-        cout << "walls: " << (int)whiteWalls << " " << (int)blackWalls << "\n";
-        for(int i = 0; i < 128; i++){
-            if (wallsOnBoard[i]){
-                cout << i << " ";
+    /**
+     * Assignment operator.
+     */
+    Board& operator=(const Board& other) {
+        if (this != &other) {
+            this->whitePawn = other.whitePawn;
+            this->blackPawn = other.blackPawn;
+
+            for (int i = 0; i < 128; i++) {
+                this->wallsOnBoard[i] = other.wallsOnBoard[i];
+                this->takenWallPlaces[i] = other.takenWallPlaces[i];
             }
+
+            for (int i = 0; i < 904; i++) {
+                this->walledOffCells[i] = other.walledOffCells[i];
+            }
+
+            this->whiteWalls = other.whiteWalls;
+            this->blackWalls = other.blackWalls;
+
+            this->winner = other.winner;
         }
-        cout << this->winner << "\n";
+        return *this;
     }
 
 
+    /**
+     * Construct a board from (i,j) coordinates and placed walls.
+     * Used for interface with python
+     */
     Board(pair<int, int> whitePawn, pair<int, int> blackPawn, vector<pair<bool, pair<int, int>>> walls, int whiteWalls, int blackWalls){
         this->whitePawn = 16 * whitePawn.first + whitePawn.second;
         this->blackPawn = 16 * blackPawn.first + blackPawn.second;
@@ -1048,6 +1075,9 @@ class Board
     }
     
 
+    /**
+     * Copy constructor.
+     */
     Board(const Board& other){
         this->whitePawn = other.whitePawn;
         this->blackPawn = other.blackPawn;
@@ -1072,6 +1102,9 @@ class Board
     }
 
 
+    /**
+     * Default constructor.
+     */
     Board(){
         this->whitePawn = 4;
         this->blackPawn = 132;
@@ -1087,6 +1120,9 @@ class Board
     }
 
 
+    /**
+     * Constructor for initial board setup from raw state.
+     */
     Board(char whitePawn, char blackPawn, char whiteWalls, char blackWalls, char* placedWallsOnBoard, size_t numberOfWallsOnBoard){
         this->whitePawn = whitePawn;
         this->blackPawn = blackPawn;
@@ -1099,6 +1135,21 @@ class Board
         this->blackWalls = blackWalls;
 
         this->winner = 0;
+    }
+
+
+    /**
+     * Outputs the current board state to the console.
+     */
+    void printState() {
+        cout << "pawns: " << (int)whitePawn << " " << (int)blackPawn << "\n";
+        cout << "walls: " << (int)whiteWalls << " " << (int)blackWalls << "\n";
+        for(int i = 0; i < 128; i++){
+            if (wallsOnBoard[i]){
+                cout << i << " ";
+            }
+        }
+        cout << this->winner << "\n";
     }
 };
 

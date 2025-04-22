@@ -17,7 +17,7 @@ bool simulateGame(Board board, int rolloutPolicyParameter1, float mctsParameter1
         int rolloutPolicyParameter = whiteMove ? rolloutPolicyParameter1 : rolloutPolicyParameter2;
         float mctsParameter = whiteMove ? mctsParameter1 : mctsParameter2;
 
-        uint8_t bestMove = mctsGetBestMove(board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, whiteMove, rolloutPolicyParameter, mctsParameter);
+        uint8_t bestMove = mctsGetBestMove(board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, whiteMove, rolloutPolicyParameter, mctsParameter, true, 0);
         board.executeMove(bestMove, whiteMove);
 
         whiteMove = !whiteMove;
@@ -219,13 +219,24 @@ int main(int argc, char const* argv[]) {
     using namespace std::chrono;
 
     auto start = high_resolution_clock::now();
-    mctsHyperParameterSearch(ROLLOUT_PARAMETER, MCTS_PARAMETER);
-    relabelDatasets();
-    pre_train_models();
     auto end = high_resolution_clock::now();
     duration<double> elapsed = end - start;
 
-    std::cout << "Execution time: " << elapsed.count() / 3600 << " hours\n";
+    mctsHyperParameterSearch(ROLLOUT_PARAMETER, MCTS_PARAMETER);
+    end = high_resolution_clock::now();
+    elapsed = end - start;
+    std::cout << "MCTS hyperparameter search finished, execution time: " << elapsed.count() / 3600 << " hours\n";
+    cout << "Best params: " << ROLLOUT_PARAMETER << " " << MCTS_PARAMETER << endl;
+
+    relabelDatasets();
+    end = high_resolution_clock::now();
+    elapsed = end - start;
+    std::cout << "Relabeling dataset finished, execution time: " << elapsed.count() / 3600 << " hours\n";
+
+    pre_train_models();
+    end = high_resolution_clock::now();
+    elapsed = end - start;
+    std::cout << "Training finished, execution time: " << elapsed.count() / 3600 << " hours\n";
 
 }
 

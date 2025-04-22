@@ -11,22 +11,27 @@
 
 using namespace Eigen;
 
-float MCTS_CONST = 0.25;
-
-int number_of_calls = 0;
+float MCTS_CONST = 0.42;
 
 Quoridor_GP whiteModels[21];
 Quoridor_GP blackModels[21];
 Quoridor_GP smallWhiteModels[21];
 Quoridor_GP smallBlackModels[21];
 
-void loadModelsOnce() {
+/**
+ * Loads in all the GP models from the model directory
+ * 
+ * @param modelDirectory the directory of the models
+ * @return void
+ */
+void loadModelsOnce(string modelDirectory = "GPmodels") {
+    // flag for whether models are loaded in, so not doing it twice
     static bool loaded = false;
     if (loaded) return;
     cout << "load in started" << endl;
 
     // Absolute path needed for UI integration, figuring this out took an embarassingly long time (roughly 3 hours), if anyone reads this feel free to roast.
-    std::filesystem::path modelDir = std::filesystem::absolute("GPmodels");
+    std::filesystem::path modelDir = std::filesystem::absolute(modelDirectory);
 
     for (int i = 0; i < 21; i++) {
         whiteModels[i] = Quoridor_GP::load((modelDir / ("whiteModel" + to_string(i))).string());
@@ -39,6 +44,11 @@ void loadModelsOnce() {
     cout << "load in successful" << endl;
 }
 
+
+/**
+ * Represents a node in the game tree for the Quoridor AI.
+ * Each node contains game state information and MCTS statistics.
+ */
 class Node
 {
 public:
@@ -50,6 +60,13 @@ public:
     int blackWins;
     int heuristicValue;
 
+    /**
+     * Calculate heuristic values for all possible children of the current board state.
+     *
+     * @param board Pointer to the current board state
+     * @param useSmallModel If true, uses a smaller heuristic model
+     * @return VectorXd Vector of heuristic predictions for all children
+     */
     VectorXd calculateHeuristicForChildren(Board* board, bool useSmallModel = true){
         int wallsOnBoard = 20 - board->whiteWalls - board->blackWalls;
         Quoridor_GP* model = player ? whiteModels + wallsOnBoard : blackModels + wallsOnBoard;
@@ -61,6 +78,16 @@ public:
     }
 
 
+
+    /**
+     * Expands the current node by generating its child nodes.
+     * Optionally calculates heuristics for children and weights them.
+     *
+     * @param board Pointer to the current board state
+     * @param heuristics 0 = no heuristic, 1 = small model, 2 = large model
+     * @param heuristicsWeight Multiplier for heuristic value
+     * @return void
+     */
     void expandNode(Board* board, int heuristics = 0, int heuristicsWeight = 10){
         uint8_t possibleMoves[256];
         size_t moveCount = 0;
@@ -77,7 +104,6 @@ public:
         this->expanded = true;
 
         if (heuristics) {
-            number_of_calls++;
             VectorXd childrenHeuristic = calculateHeuristicForChildren(board, heuristics==1);
             for(int i = 0; i < moveCount; i++){
                 uint8_t child = possibleMoves[i];    
@@ -94,6 +120,13 @@ public:
     }
 
 
+    /**
+     * Calculates the value of the node based on MCTS and heuristic evaluation.
+     *
+     * @param player Perspective of the player (true = white, false = black)
+     * @param mctsParameter Exploration constant used in UCT formula
+     * @return float Value of the node
+     */
     float getValue(bool player, float mctsParameter){
         float n_node = (float)(this->whiteWins + this->blackWins);
 
@@ -109,6 +142,13 @@ public:
     }
 
 
+    /**
+     * Node constructor
+     * 
+     * @param parent Pointer to the parent node
+     * @param player true: white's turn, false: black's turn
+     * @param heuristicValue Heuristic value assigned to this node
+     */
     Node(Node* parent, bool player, float heuristicValue){
         this->parent = parent;
         this->player = player;
@@ -119,6 +159,10 @@ public:
     }
 
 
+    /**
+     * Node destructor
+     * Recursively deletes all child nodes and frees memory
+     */
     ~Node() {
         if(!this->children){
             return;
@@ -130,7 +174,8 @@ public:
             }
         }
 
-        free(this->children); // Free the array of child pointers
+        // Free the array of child pointers, yes, it has been pointed out, that I should've used new and delete instead...
+        free(this->children); 
     }
 };
 
@@ -140,20 +185,49 @@ bool rollout(Board* board, bool player, int rolloutPolicyParameter, int useModel
 void backpropagate(Node* node, int whiteWins, int blackWins);
 uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter, int useModelForRollout);
 uint8_t bestUCT(Node* node, float mctsParameter);
-uint8_t mostVisitedMove(Node* node, float mctsParameter);
+uint8_t mostVisitedMove(Node* node);
 Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT, int useModelForRollout);
 void nodeVisits(Node* node, int* moves);
 
 
+/**
+ * Runs MCTS and returns the best move according to visit count.
+ * This is used when predicting agent's next move.
+ * 
+ * @param state Current board state
+ * @param rollouts Number of rollouts
+ * @param simulationsPerRollout Simulations per rollout
+ * @param whiteTurn Whether it's white's turn
+ * @param rolloutPolicyParameter Rollout policy parameter
+ * @param mctsParameter UCT exploration constant
+ * @param useModelForUCT Whether to use model in UCT
+ * @param useModelForRollout Whether to use model during rollout
+ * @return uint8_t Best move determined by MCTS
+ */
 uint8_t mctsGetBestMove(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT = true, int useModelForRollout = 0){
     Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter, useModelForUCT, useModelForRollout);
-    uint8_t bestMove = mostVisitedMove(mctsTree, mctsParameter);
+    uint8_t bestMove = mostVisitedMove(mctsTree);
 
     delete(mctsTree);
     return bestMove;
 }
 
 
+/**
+ * Runs MCTS and fills a distribution array with visit counts for all moves.
+ * This is used for data generation and data relabelling.
+ * 
+ * @param state Current board state
+ * @param rollouts Number of rollouts
+ * @param simulationsPerRollout Simulations per rollout
+ * @param whiteTurn Whether it's white's turn
+ * @param distribution Array to fill with visit counts
+ * @param rolloutPolicyParameter Rollout policy parameter
+ * @param mctsParameter UCT exploration constant
+ * @param useModelForUCT Whether to use model in UCT
+ * @param useModelForRollout Whether to use model during rollout
+ * @return void
+ */
 void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int* distribution, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT = true, int useModelForRollout = 0){
     Node *mctsTree = buildTree(state, rollouts, simulationsPerRollout, whiteTurn, rolloutPolicyParameter, mctsParameter, useModelForUCT, useModelForRollout);
     nodeVisits(mctsTree, distribution);
@@ -161,6 +235,19 @@ void mctsDistribution(Board state, int rollouts, int simulationsPerRollout, bool
 }
 
 
+/**
+ * Builds the MCTS tree from the given state.
+ * 
+ * @param state Initial board state
+ * @param rollouts Number of rollouts to perform
+ * @param simulationsPerRollout Simulations per rollout
+ * @param whiteTurn Whether it's white's turn
+ * @param rolloutPolicyParameter Parameter for rollout policy
+ * @param mctsParameter MCTS UCT parameter
+ * @param useModelForUCT Whether to use model-based UCT values
+ * @param useModelForRollout Whether to use model in rollout
+ * @return Node* Root of the built MCTS tree
+ */
 Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool whiteTurn, int rolloutPolicyParameter, float mctsParameter, bool useModelForUCT, int useModelForRollout){
     loadModelsOnce();
 
@@ -170,34 +257,11 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
 
     while(rollouts > 0){
         Node* leaf = findLeaf(root, &board, mctsParameter, useModelForUCT);
-
-        // Threading does not work, too much overhead for thread creation: ~100 usec, while a single rollout is roughly 50 usec
-        // // =========== THREADING START ==========
-        // vector<int> simulationResult(simulationsPerRollout);
-        // vector<thread> threads;
-        // for(int i = 0; i < simulationsPerRollout; i++){
-        //     threads.emplace_back([&, i]() {
-        //         Board boardCopy = board;
-        //         simulationResult[i] = rollout(&boardCopy, leaf->player rolloutPolicyParameter);
-        //     });
-        // }
-
-        // // Run threads
-        // for (thread& th : threads) {
-        //     th.join();
-        // }
-        // // =========== THREADING END ===========
-
-
-
-        // =========== NORMAL START ==========
         vector<bool> simulationResult(simulationsPerRollout);
         for(int i = 0; i < simulationsPerRollout; i++){
             Board boardCopy = board;
             simulationResult[i] = rollout(&boardCopy, leaf->player, rolloutPolicyParameter, useModelForRollout);
         }
-        // =========== NORMAL END ===========
-
 
         int whiteWins = 0;
         int blackWins = 0;
@@ -220,6 +284,15 @@ Node* buildTree(Board state, int rollouts, int simulationsPerRollout, bool white
 }
 
 
+/**
+ * Selects a leaf node to expand from the given tree node.
+ * 
+ * @param node Current node in the MCTS tree
+ * @param board Pointer to the game board
+ * @param mctsParameter MCTS exploration parameter
+ * @param useModelForUCT Whether to use model-assisted UCT
+ * @return Node* Pointer to the leaf node to expand
+ */
 Node* findLeaf(Node* node, Board* board, float mctsParameter, bool useModelForUCT){
     int depth = 0;
     while(node->expanded){
@@ -254,6 +327,15 @@ Node* findLeaf(Node* node, Board* board, float mctsParameter, bool useModelForUC
 }
 
 
+/**
+ * Performs a single rollout simulation.
+ * 
+ * @param board Game board to simulate on
+ * @param player true: white, false: black
+ * @param rolloutPolicyParameter Parameter to influence rollout randomness
+ * @param useModelForRollout Whether to use model during rollout
+ * @return bool true if white wins, false if black wins
+ */
 bool rollout(Board* board, bool player, int rolloutPolicyParameter, int useModelForRollout){
     for(int i = 0; i < 40; i++){
         uint8_t bestMove = rolloutPolicy(board, player, rolloutPolicyParameter, useModelForRollout);
@@ -270,6 +352,14 @@ bool rollout(Board* board, bool player, int rolloutPolicyParameter, int useModel
 }
 
 
+/**
+ * Samples a move based on the GP model's prediction distribution.
+ * 
+ * @param board Game board
+ * @param player true: white, false: black
+ * @param model Pointer to GP model to use
+ * @return uint8_t Sampled move
+ */
 uint8_t generateMoveFromModel(Board* board, bool player, Quoridor_GP* model){
     VectorXd pred = model->predict(board->toInputVector(player));
     double r = ((double) rand() /(RAND_MAX));
@@ -286,6 +376,13 @@ uint8_t generateMoveFromModel(Board* board, bool player, Quoridor_GP* model){
 }
 
 
+/**
+ * Rollout policy: Fully random (with 3 retries for wall validation).
+ * 
+ * @param board Game board
+ * @param player true: white, false: black
+ * @return uint8_t Selected move
+ */
 uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
@@ -311,6 +408,13 @@ uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
 }
 
 
+/**
+ * Rollout policy: 50% chance for pawn movement.
+ * 
+ * @param board Game board
+ * @param player true: white, false: black
+ * @return uint8_t Selected move
+ */
 uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
@@ -345,6 +449,14 @@ uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool player){
 }
 
 
+
+/**
+ * Rollout policy: Prefer best pawn movement with 75%, fallback to probable.
+ * 
+ * @param board Game board
+ * @param player true: white, false: black
+ * @return uint8_t Selected move
+ */
 uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
@@ -377,6 +489,16 @@ uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
 }
 
 
+/**
+ * Chooses a move to play during rollout based on policy and optional model.
+ * Similar to rolloutPolicy_BestPawnMovement
+ * 
+ * @param board Current game board
+ * @param player Current player (true: white, false: black)
+ * @param rolloutPolicyParameter Bias parameter for shortest path pawn movement
+ * @param useModelForRollout Use model-based decision making with probability
+ * @return uint8_t Move to execute
+ */
 uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter, int useModelForRollout){
     uint8_t possibleMoves[256];
     size_t moveCount = 0;
@@ -418,6 +540,15 @@ uint8_t rolloutPolicy(Board* board, bool player, int rolloutPolicyParameter, int
 }
 
 
+
+/**
+ * Backpropagates the simulation result up the tree.
+ * 
+ * @param node Node from which to start backpropagation
+ * @param whiteWins Number of white wins to propagate
+ * @param blackWins Number of black wins to propagate
+ * @return void
+ */
 void backpropagate(Node* node, int whiteWins, int blackWins){
     while(node){
         node->whiteWins += whiteWins;
@@ -427,6 +558,13 @@ void backpropagate(Node* node, int whiteWins, int blackWins){
 }
 
 
+/**
+ * Chooses the best move from a node using UCT formula.
+ * 
+ * @param node Current node in the MCTS tree
+ * @param mctsParameter MCTS exploration constant
+ * @return uint8_t Best move determined by UCT
+ */
 uint8_t bestUCT(Node* node, float mctsParameter){
     float bestValue = -1;
     uint8_t bestMove = 0;
@@ -458,7 +596,13 @@ uint8_t bestUCT(Node* node, float mctsParameter){
 }
 
 
-uint8_t mostVisitedMove(Node* node, float mctsParameter){
+/**
+ * Chooses the move that has been visited the most times.
+ * 
+ * @param node Current node in the MCTS tree
+ * @return uint8_t Move index with the highest number of visits
+ */
+uint8_t mostVisitedMove(Node* node){
     int bestValue = -1;
     uint8_t bestMove = 0;
 
@@ -477,6 +621,13 @@ uint8_t mostVisitedMove(Node* node, float mctsParameter){
 }
 
 
+/**
+ * Populates an array with the number of visits for each move.
+ * 
+ * @param node Root of the MCTS tree
+ * @param moves Output array with 256 entries
+ * @return void
+ */
 void nodeVisits(Node* node, int* moves){
     for (int move = 0; move < 256; move++){
         Node* child = node->children[move];

@@ -194,6 +194,11 @@ def getMoveSpectate(board: Board):
                 move = board.moves[board.currentMove]
                 board.currentMove += 1
                 return move
+            
+            if event.type == pygame.QUIT:
+                running = False
+                print("quit called")
+                quit()
 
 
 def selectGameSave():
