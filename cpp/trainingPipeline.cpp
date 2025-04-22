@@ -13,11 +13,13 @@
 
 
 bool simulateGame(Board board, int rolloutPolicyParameter1, float mctsParameter1, int rolloutPolicyParameter2, float mctsParameter2, bool whiteMove){
-    for (int i = 0; i < 40 && !board.getWinner(); i++){
-        int rolloutPolicyParameter = whiteMove ? rolloutPolicyParameter1 : rolloutPolicyParameter2;
-        float mctsParameter = whiteMove ? mctsParameter1 : mctsParameter2;
+    MCTS agent1 = MCTS(ROLLOUTS, SIMULATIONS_PER_ROLLOUT, mctsParameter1, rolloutPolicyParameter1);
+    MCTS agent2 = MCTS(ROLLOUTS, SIMULATIONS_PER_ROLLOUT, mctsParameter2, rolloutPolicyParameter2);
 
-        uint8_t bestMove = mctsGetBestMove(board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, whiteMove, rolloutPolicyParameter, mctsParameter, true, 0);
+    for (int i = 0; i < 40 && !board.getWinner(); i++){
+        MCTS agent = whiteMove ? agent1 : agent2;
+
+        uint8_t bestMove = agent.predictBestMove(board, whiteMove);
         board.executeMove(bestMove, whiteMove);
 
         whiteMove = !whiteMove;
@@ -121,7 +123,7 @@ int contestParameters(int rolloutPolicyParameter1, float mctsParameter1, int rol
 
 
 void mctsHyperParameterSearch(int& rolloutPolicyParameter, float& mctsParameter) {
-    // Step 1: Initialize 16 random parameter pairs
+    // Step 1: Initialize 64 random parameter pairs
     vector<pair<int, float>> population;
     random_device rd;
     mt19937 gen(rd());
@@ -155,7 +157,7 @@ void mctsHyperParameterSearch(int& rolloutPolicyParameter, float& mctsParameter)
         population = winners;
     }
 
-    // Step 3: Final winner
+    // Step 3: Return final winner
     rolloutPolicyParameter = population[0].first;
     mctsParameter = population[0].second;
 }
@@ -173,11 +175,14 @@ void createDataset() {
     segmentDataset("datasets/datasetBlack", 1000, 100);
 }
 
+
 void relabelDatasetFile(const string& filename, bool player) {
     const size_t maxBoards = 2000;
     Board* boards = new Board[maxBoards];
     int (*distributions)[256] = new int[maxBoards][256];
     size_t size = 0;
+
+    MCTS agent = MCTS(ROLLOUTS, SIMULATIONS_PER_ROLLOUT, MCTS_PARAMETER, ROLLOUT_PARAMETER);
 
     readInSaveFile(boards, distributions, size, filename);
 
@@ -185,7 +190,7 @@ void relabelDatasetFile(const string& filename, bool player) {
 
     for (size_t i = 0; i < size; i++) {
         int newDistribution[256] = {0};
-        mctsDistribution(boards[i], ROLLOUTS, SIMULATIONS_PER_ROLLOUT, player, newDistribution, ROLLOUT_PARAMETER, MCTS_PARAMETER);
+        agent.predictDistribution(boards[i], player, newDistribution);
 
         uint8_t saveData[32];
         boards[i].getSaveData(saveData);

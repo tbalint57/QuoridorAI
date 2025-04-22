@@ -331,13 +331,13 @@ void segmentDataset(string saveFileName, int trainLength, int validationLength) 
 }
 
 
-int main() {
-    srand(time(NULL));
-    createDataSetNatural();
+// int main() {
+//     srand(time(NULL));
+//     createDataSetNatural();
 
-    padDataSetArtificially(true, "datasets/datasetWhite");
-    padDataSetArtificially(false, "datasets/datasetBlack");
+//     padDataSetArtificially(true, "datasets/datasetWhite");
+//     padDataSetArtificially(false, "datasets/datasetBlack");
 
-    segmentDataset("datasets/datasetWhite", 1000, 100);
-    segmentDataset("datasets/datasetBlack", 1000, 100);
-}
+//     segmentDataset("datasets/datasetWhite", 1000, 100);
+//     segmentDataset("datasets/datasetBlack", 1000, 100);
+// }
