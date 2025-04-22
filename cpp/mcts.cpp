@@ -157,6 +157,9 @@ class MCTS
      * @return void
      */
     void loadModels() {
+        if (modelDirectory == ""){
+            return;
+        }
         std::filesystem::path modelDir = std::filesystem::absolute(modelDirectory);
     
         for (int i = 0; i < 21; i++) {
@@ -213,7 +216,8 @@ class MCTS
         Node *root = new Node(nullptr, whiteTurn, 0);
         Board board = Board(state);
 
-        while(rollouts > 0){
+        int rolloutsCompleted = 0;
+        while(rollouts > rolloutsCompleted){
             Node* leaf = findLeaf(root, &board);
             vector<bool> simulationResult(simulationsPerRollout);
             for(int i = 0; i < simulationsPerRollout; i++){
@@ -235,7 +239,7 @@ class MCTS
             backpropagate(leaf, whiteWins, blackWins);
 
             board = state;
-            rollouts--;
+            rolloutsCompleted++;
         }
 
         return root;

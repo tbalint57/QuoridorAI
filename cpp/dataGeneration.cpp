@@ -18,6 +18,7 @@ int ROLLOUTS = 10000;
 int SIMULATIONS_PER_ROLLOUT = 3;
 int ROLLOUT_PARAMETER = 4;
 float MCTS_PARAMETER = 0.5;
+MCTS agent = MCTS(ROLLOUTS, SIMULATIONS_PER_ROLLOUT, MCTS_PARAMETER, ROLLOUT_PARAMETER, "", false, 0);
 
 
 int nthBestMove(int* distribution, int n) {
@@ -57,7 +58,7 @@ void generateData(Board* board, string saveFileNameWhite, string saveFileNameBla
     }
 
     int distribution[256] = {0};
-    mctsDistribution(*board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, player, distribution, ROLLOUT_PARAMETER, MCTS_PARAMETER);
+    agent.predictDistribution(*board, player, distribution);
 
     seenBoards->insert(*board);
     string saveFileName = player ? saveFileNameWhite : saveFileNameBlack;
@@ -265,7 +266,7 @@ void padDataSetArtificially(bool player, string saveFileName) {
             seenBoards.insert(board);
 
             int distributionW[256] = {0};
-            mctsDistribution(board, ROLLOUTS, SIMULATIONS_PER_ROLLOUT, player, distributionW, ROLLOUT_PARAMETER, MCTS_PARAMETER);
+            agent.predictDistribution(board, player, distributionW);
             saveBoardPosition(&board, saveFileName, distributionW);
             positions[i]++;
         }
@@ -330,13 +331,13 @@ void segmentDataset(string saveFileName, int trainLength, int validationLength) 
 }
 
 
-// int main() {
-//     srand(time(NULL));
-//     createDataSetNatural();
+int main() {
+    srand(time(NULL));
+    createDataSetNatural();
 
-//     padDataSetArtificially(true, "datasets/datasetWhite");
-//     padDataSetArtificially(false, "datasets/datasetBlack");
+    padDataSetArtificially(true, "datasets/datasetWhite");
+    padDataSetArtificially(false, "datasets/datasetBlack");
 
-//     segmentDataset("datasets/datasetWhite", 1000, 100);
-//     segmentDataset("datasets/datasetBlack", 1000, 100);
-// }
+    segmentDataset("datasets/datasetWhite", 1000, 100);
+    segmentDataset("datasets/datasetBlack", 1000, 100);
+}
