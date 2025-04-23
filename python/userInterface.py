@@ -32,7 +32,7 @@ pygame.display.set_caption("Quoridor")
 BG_COLOR = (101, 55, 57)
 CELL_COLOR = (59, 59, 61)
 WHITE_COLOR = (214, 169, 121)
-BLACK_COLOR = (73, 21, 31)
+BLACK_COLOR = (50, 10, 20)
 WALL_COLOR = (246, 173, 88)
 
 # Load images
