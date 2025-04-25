@@ -39,7 +39,7 @@ public:
      * @param model model used for prediction
      * @return void
      */
-    void expandNode(Board* board, int heuristicsWeight = 10, Quoridor_GP* model = nullptr){
+    void expandNode(Board* board, int heuristicsWeight = 100, Quoridor_GP* model = nullptr){
         uint8_t possibleMoves[256];
         size_t moveCount = 0;
         board->generatePossibleMoves(this->player, possibleMoves, moveCount);
@@ -148,7 +148,7 @@ class MCTS
 
     string modelDirectory = "GPmodels";
     bool useModelForUCT = true;
-    int useModelForRollout = 0;
+    int rolloutPolicyFunction = 2;
 
     /**
      * Loads in all the GP models from the model directory
@@ -280,9 +280,8 @@ class MCTS
             if(depth == 0) model = node->player ? whiteModels + wallsOnBoard : blackModels + wallsOnBoard;
         }
 
-
-
-        node->expandNode(board, depth ? 10 : 100, model);
+        int simulations = rollouts * simulationsPerRollout;
+        node->expandNode(board, depth ? (simulations >> 10) : (simulations >> 6), model);
         uint8_t bestMove = bestUCT(node);
 
         board->executeMove(bestMove, node->player);
@@ -325,17 +324,29 @@ class MCTS
      */
     uint8_t generateMoveFromModel(Board* board, bool player, Quoridor_GP* model){
         VectorXd pred = model->predict(board->toInputVector(player));
-        double r = ((double) rand() /(RAND_MAX));
-        int move = 0;
 
-        for(;move < 256; move++){
-            r -= pred(move);
-            if(r <= 0){
+        for(int i = 0; i < 10; i++){
+            // If predicyion is a uniform distribution, do not bother!!!
+            if (pred(0) > 0){
                 break;
             }
-        }
+            double r = ((double) rand() /(RAND_MAX));
+            int move = 0;
 
-        return move;
+            for(;move < 256; move++){
+                r -= pred(move);
+                if(r <= 0){
+                    break;
+                }
+            }
+
+            bool playerHasWall = player ? board->whiteWalls : board->blackWalls;
+            if (move < 128 || (playerHasWall && board->isValidWallPlacement(move))){
+                return move;
+            }
+        }
+        // Fallback on pawn move
+        return board->generateMoveOnShortestPath(player);
     }
 
 
@@ -346,7 +357,7 @@ class MCTS
      * @param player true: white, false: black
      * @return uint8_t Selected move
      */
-    uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
+    inline uint8_t rolloutPolicy_fullRandom(Board* board, bool player){
         uint8_t possibleMoves[256];
         size_t moveCount = 0;
         int tries = 0;
@@ -378,7 +389,7 @@ class MCTS
      * @param player true: white, false: black
      * @return uint8_t Selected move
      */
-    uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool player){
+    inline uint8_t rolloutPolicy_halfProbabilityOfPawnMovement(Board* board, bool player){
         uint8_t possibleMoves[256];
         size_t moveCount = 0;
         int tries = 0;
@@ -414,17 +425,17 @@ class MCTS
 
 
     /**
-     * Rollout policy: Prefer best pawn movement with 75%, fallback to probable.
+     * Rollout policy: Prefer best pawn movement with certain probablity, fallback to probable.
      * 
      * @param board Game board
      * @param player true: white, false: black
      * @return uint8_t Selected move
      */
-    uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
+    inline uint8_t rolloutPolicy_BestPawnMovement(Board* board, bool player){
         uint8_t possibleMoves[256];
         size_t moveCount = 0;
 
-        bool pawnMove = rand() % 4;
+        bool pawnMove = rand() % rolloutPolicyParameter;
 
         if (pawnMove != 0){
             return board->generateMoveOnShortestPath(player);
@@ -433,7 +444,7 @@ class MCTS
         board->generateProbableMovesUnchecked(player, possibleMoves, moveCount);
 
         int tries = 0;
-        // we can get a pawn move here as well, but I don't care!
+        // we can get the pawn move here as well, but I don't care!
         while(tries < 3){
             uint8_t move = possibleMoves[rand() % moveCount];
 
@@ -452,6 +463,13 @@ class MCTS
     }
 
 
+    inline uint8_t rolloutPolicy_GP(Board* board, bool player){
+        int wallsOnBoard = 20 - board->whiteWalls - board->blackWalls;
+        Quoridor_GP *model = player ? smallWhiteModels + wallsOnBoard : smallBlackModels + wallsOnBoard;
+        uint8_t move = generateMoveFromModel(board, player, model);
+        return move;
+    }
+
     /**
      * Main rollout policy function. Chooses between shortest path move, GP model, or fallback.
      * Similar to rolloutPolicy_BestPawnMovement
@@ -461,43 +479,22 @@ class MCTS
      * @return uint8_t Move to execute
      */
     uint8_t rolloutPolicy(Board* board, bool player){
-        uint8_t possibleMoves[256];
-        size_t moveCount = 0;
-
-        int pawnMove = rand() % rolloutPolicyParameter;
-
-        if (pawnMove != 0){
-            return board->generateMoveOnShortestPath(player);
+        switch (rolloutPolicyFunction)
+        {
+        case 0:
+            return rolloutPolicy_fullRandom(board, player);
+        
+        case 1:
+            return rolloutPolicy_halfProbabilityOfPawnMovement(board, player);
+        
+        case 2:
+            return rolloutPolicy_BestPawnMovement(board, player);
+        
+        case 3:
+            return rolloutPolicy_GP(board, player);
         }
 
-        if (useModelForRollout){
-            int modelMove = rand() % useModelForRollout;
-            if (!modelMove) {
-                int wallsOnBoard = 20 - board->whiteWalls - board->blackWalls;
-                Quoridor_GP *model = player ? smallWhiteModels + wallsOnBoard : smallBlackModels + wallsOnBoard;
-                return generateMoveFromModel(board, player, model);
-            }
-        }
-
-        board->generateProbableMovesUnchecked(player, possibleMoves, moveCount);
-
-        int tries = 0;
-        // we can get a pawn move here as well, but I don't care!
-        while(tries < 3){
-            uint8_t move = possibleMoves[rand() % moveCount];
-
-            if(move >> 7){
-                uint8_t wallPlacement = move & 0b01111111;
-                if(!board->isValidWallPlacement(wallPlacement)){
-                    tries++;
-                    continue;
-                }
-            }
-            return move;
-        }
-
-        // possibleMoves[0] is a pawn movement and thus definitely valid.
-        return possibleMoves[0];
+        return 0;
     }
 
 
@@ -608,9 +605,9 @@ class MCTS
      * @param rolloutPolicyParameter Parameter influencing rollout policy behavior
      * @param modelDirectory Directory containing the GP models
      * @param useModelForUCT Whether to use a GP model in UCT selection
-     * @param useModelForRollout Frequency of using GP model in rollout (0 = never)
+     * @param rolloutPolicyFunction What rollout policy to use
      */
-    MCTS(int rollouts = 50000, int simulationsPerRollout = 5, float mctsParameter = 0.5, int rolloutPolicyParameter = 4, string modelDirectory = "GPmodels", bool useModelForUCT = true, int useModelForRollout = 0){
+    MCTS(int rollouts = 50000, int simulationsPerRollout = 5, float mctsParameter = 0.5, int rolloutPolicyParameter = 4, string modelDirectory = "GPmodels", bool useModelForUCT = true, int rolloutPolicyFunction = 2){
         this->rollouts = rollouts;
         this->simulationsPerRollout = simulationsPerRollout;
 
@@ -619,7 +616,7 @@ class MCTS
 
         this->modelDirectory = modelDirectory;
         this->useModelForUCT = useModelForUCT;
-        this->useModelForRollout = useModelForRollout;
+        this->rolloutPolicyFunction = rolloutPolicyFunction;
 
         loadModels();
     }

@@ -206,7 +206,7 @@ def selectGameSave():
     save_path = os.path.join(own_dir, 'savedGames/')
 
     def get_save_files():
-        return [f for f in os.listdir(save_path) if os.path.isfile(os.path.join(save_path, f))]
+        return sorted([f for f in os.listdir(save_path) if os.path.isfile(os.path.join(save_path, f))])
 
     def render_save_files(save_files, selected_index, start_index, visible_count = 15):
         screen.fill(BG_COLOR)

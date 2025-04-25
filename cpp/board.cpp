@@ -586,7 +586,7 @@ class Board
     /**
      * Checks if the wall placement is valid (does not block all paths to goals).
      *
-     * @param wallPlacement Wall index (0-127)
+     * @param wallPlacement Wall index (0-127), but it also accepts wall placement with flag (128-255)
      * @return true if wall placement is valid
      */
     inline bool isValidWallPlacement(uint8_t wallPlacement){
