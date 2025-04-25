@@ -621,3 +621,134 @@ class MCTS
         loadModels();
     }
 };
+
+
+// It finially works again, though its performance is rather poor...
+
+class Minimax {
+    public:
+
+    int minmaxDepth;
+
+    float minimax(Board* board, int depth, bool player, float alpha, float beta){
+    
+        if (depth == 0){
+            return board->evaluate();
+        }
+    
+        if(player){
+            float maxValue = -1000.0f;
+            uint8_t moves[256] = {0};
+            size_t movesCount = 0; 
+            board->generatePossibleMoves(player, moves, movesCount);
+            
+            for (int i = 0; i < movesCount; i++){
+                uint8_t move = moves[i];
+    
+                board->executeMove(move, player);
+                maxValue = max(maxValue, minimax(board, depth - 1, !player, alpha, beta));
+                board->undoMove(move, player);
+    
+                alpha = max(alpha, maxValue);
+    
+                if (maxValue > beta){
+                    break;
+                }
+            }
+            return maxValue;
+        }
+    
+        if(!player){
+            float minValue = 1000.0f;
+            uint8_t moves[256] = {0};
+            size_t movesCount = 0; 
+            board->generatePossibleMoves(player, moves, movesCount);
+            
+            for (int i = 0; i < movesCount; i++){
+                uint8_t move = moves[i];
+    
+                board->executeMove(move, player);
+                minValue = min(minValue, minimax(board, depth - 1, !player, alpha, beta));
+                board->undoMove(move, player);
+    
+                beta = min(beta, minValue);
+    
+                if(minValue < alpha){
+                    break;
+                }
+            }
+            return minValue;
+        }
+    
+        return 0;
+    }
+    
+    uint8_t predictBestMove(Board* board, bool player){
+        int depth = minmaxDepth;
+        uint8_t bestMove;
+    
+        float alpha = -2000.0f;
+        float beta = 2000.0f;
+    
+        if (depth == 0){
+            return board->evaluate();
+        }
+    
+        if(player){
+            float maxValue = -2000.0f;
+    
+            uint8_t moves[256] = {0};
+            size_t movesCount = 0; 
+            board->generatePossibleMoves(player, moves, movesCount);
+            
+            for (int i = 0; i < movesCount; i++){
+                uint8_t move = moves[i];
+    
+                board->executeMove(move, player);
+                float value = minimax(board, depth - 1, !player, alpha, beta);
+                if(value > maxValue){
+                    bestMove = move;
+                    maxValue = value;
+                }
+                board->undoMove(move, player);
+                alpha = max(alpha, maxValue);
+    
+                if (maxValue > beta){
+                    break;
+                }
+            }
+        }
+    
+        if(!player){
+            float minValue = 2000.0f;
+    
+            uint8_t moves[256] = {0};
+            size_t movesCount = 0;
+            board->generatePossibleMoves(player, moves, movesCount);
+            
+            for (int i = 0; i < movesCount; i++){
+                uint8_t move = moves[i];
+                board->executeMove(move, player);
+                float value = minimax(board, depth - 1, !player, alpha, beta);
+                if(value < minValue){
+                    bestMove = move;
+                    minValue = value;
+                }
+                board->undoMove(move, player);
+                beta = min(beta, minValue);
+    
+                if(minValue < alpha){
+                    break;
+                }
+            }
+        }
+    
+        
+        return bestMove;
+    }
+
+    Minimax(int minimaxDepth){
+        this->minmaxDepth = minimaxDepth;
+    }
+
+};

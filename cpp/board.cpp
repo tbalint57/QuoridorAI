@@ -201,6 +201,11 @@ class Board
     }
 
 
+    inline void updateWallsOnBoardUndo(uint8_t wallPlacement){
+        wallsOnBoard[wallPlacement] = false;
+    }
+
+
     inline void updateTakenWallPlaces(uint8_t wallPlacement){
         takenWallPlaces[wallPlacement] = true;
         bool isHorizontal = wallPlacement & 0x40;
@@ -227,6 +232,20 @@ class Board
     }
 
 
+    inline void updateTakenWallPlacesUndo(uint8_t wallPlacement){
+        // This function recalculates taken wall places => slower than updateTakenWallPlaces
+        for (int i = 0; i < 128; i++){
+            takenWallPlaces[i] = false;
+        }
+
+        for (int wallPlacement = 0; wallPlacement < 128; wallPlacement++){
+            if (wallsOnBoard[wallPlacement]){
+                updateTakenWallPlaces(wallPlacement);
+            }
+        }
+    }
+
+
     inline void updateWalledOffCells(uint8_t wallPlacement){
         bool isHorizontal = wallPlacement & 0x40;
         uint8_t i = (wallPlacement & 56) >> 3;
@@ -248,10 +267,38 @@ class Board
     }
 
 
+    inline void updateWalledOffCellsUndo(uint8_t wallPlacement){
+        bool isHorizontal = wallPlacement & 0x40;
+        uint8_t i = (wallPlacement & 56) >> 3;
+        uint8_t j = wallPlacement & 7;
+
+        if(isHorizontal){
+            walledOffCells[16 * i + j + UP] = false;
+            walledOffCells[16 * (i + 1) + j + DOWN] = false;
+            walledOffCells[16 * i + j + 1 + UP] = false;
+            walledOffCells[16 * (i + 1) + (j + 1) + DOWN] = false;
+        }
+
+        if(!isHorizontal){
+            walledOffCells[16 * i + j + RIGHT] = false;
+            walledOffCells[16 * i + j + 1 + LEFT] = false;
+            walledOffCells[16 * (i + 1) + j + RIGHT] = false;
+            walledOffCells[16 * (i + 1) + (j + 1) + LEFT] = false;
+        }
+    }
+
+
     inline void executeWallPlacement(uint8_t wallPlacement){
         updateWallsOnBoard(wallPlacement);
         updateTakenWallPlaces(wallPlacement);
         updateWalledOffCells(wallPlacement);
+    }
+
+
+    inline void undoWallPlacement(uint8_t wallPlacement){
+        updateWallsOnBoardUndo(wallPlacement);
+        updateTakenWallPlacesUndo(wallPlacement);
+        updateWalledOffCellsUndo(wallPlacement);
     }
 
 
@@ -273,6 +320,21 @@ class Board
                 winner = 'b';
             }
         }
+    }
+
+
+    inline void undoPawnMove(uint8_t move, uint8_t player){
+        if(player){
+            (move & 8) ? whitePawn -= (move & 48) : whitePawn += (move & 48);
+            (move & 4) ? whitePawn -= (move & 3) : whitePawn += (move & 3);
+        }
+
+        if(!player){
+            (move & 8) ? blackPawn -= (move & 48) : blackPawn += (move & 48);
+            (move & 4) ? blackPawn -= (move & 3) : blackPawn += (move & 3);
+        }
+
+        winner = 0;
     }
 
 
@@ -646,6 +708,18 @@ class Board
             executePawnMove(move, player);
         }
     }
+
+
+    void undoMove(uint8_t move, bool player){
+        if (move >> 7){
+            uint8_t wallPlacement = move & 0b01111111;
+            player ? whiteWalls++ : blackWalls++;
+            undoWallPlacement(wallPlacement);
+        }
+        else{
+            undoPawnMove(move, player);
+        }
+    }
     
 
     /**
@@ -661,6 +735,62 @@ class Board
         int pawnMoves =  moveCount;
         generatePossibleWallPlacements(player, possibleMoves, moveCount);
         return pawnMoves;
+    }
+
+
+    float evaluate(){
+        if (whitePawn == 7 && blackPawn == 122){
+            cout << (int) whitePawn << " " << (int) blackPawn << endl;
+        }
+        
+        if(winner == 'w'){
+            return 1000.0f;
+        }
+
+        if(winner == 'b'){
+            return -1000.0f;
+        }
+ 
+        float whitePathLength = (float) bfs(true);
+        float blackPathLength = (float) bfs(false);
+        
+        float numberOfWallsAheadWhite = 0.0f; 
+        int iWhite = (whitePawn & 0xf0) >> 4; 
+        for(int i = iWhite; i < 8; i++){ 
+            for(int j = 0; j < 8; j++){ 
+                if(wallsOnBoard[8 * i + j] || wallsOnBoard[64 + 8 * i + j]){ 
+                    numberOfWallsAheadWhite++; 
+                }
+             }
+         }
+ 
+        float numberOfWallsAheadBlack = 0.0f; 
+        int iBlack = (whitePawn & 0xf0) >> 4; 
+        for(int i = 0; i < iBlack; i++){ 
+            for(int j = 0; j < 8; j++){ 
+                if(wallsOnBoard[8 * i + j] || wallsOnBoard[64 + 8 * i + j]){ 
+                    numberOfWallsAheadBlack++; 
+                } 
+            } 
+        }
+ 
+        uint8_t temp[5] = {0};
+        size_t whiteNeighbours = 0;
+        size_t blackNeighbours = 0;
+        getNeighbours(whitePawn, temp, whiteNeighbours);
+        getNeighbours(blackPawn, temp, blackNeighbours);
+
+        float numberOfWhiteNeighbours = (float) whiteNeighbours; 
+        float numberOfBlackNeighbours = (float) blackNeighbours;
+ 
+        float heuristics[8] = {whitePathLength, blackPathLength, (float) whiteWalls, (float) blackWalls, numberOfWallsAheadWhite, numberOfWallsAheadBlack, numberOfWhiteNeighbours, numberOfBlackNeighbours};
+        float weights[8] = {1.0f, -1.0f, 1.5f, -1.5f, -0.4f, 0.4f, 0.2f, -0.2f};
+        float value = 0.0f;
+ 
+        for(int i = 0; i < 8; i++){ 
+            value += weights[i] * heuristics[i]; 
+        }
+        return value;
     }
 
 
