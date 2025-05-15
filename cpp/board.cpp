@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <string>
 #include <Eigen/Dense>
+#include <functional>
 
 #define RIGHT 0
 #define DOWN 256
@@ -56,7 +57,7 @@ class Board
      */
     bool dfs(bool player){
         uint8_t startCell = player ? whitePawn : blackPawn;
-        // write in that this is fatser than vector
+        // Using an array and a pointers is faster than using std::vector
         uint8_t todo[81];
         size_t todoSize = 0;
         bool seen[137] = {false};
@@ -77,7 +78,7 @@ class Board
                 break;
             }
 
-            // This is ugly, but really good for performance...
+            // This copy-paste is ugly, but really good for performance
             if((curCell & 0xf) != 8 && !walledOffCells[curCell + RIGHT]){
                 neighbourCell = curCell + 1;
                 if (!seen[neighbourCell]){
@@ -127,6 +128,7 @@ class Board
      */
     int bfs(bool player){
         uint8_t startCell = player ? whitePawn : blackPawn;
+        // Using an array and 2 pointers is faster than using std::queue
         uint8_t todo[81] = {};
         int todoFront = 0;
         int todoBack = 0;
@@ -150,7 +152,7 @@ class Board
                 break;
             }
 
-            // This is ugly, copy-paste is king...
+            // This copy-paste is ugly, but really good for performance
             if((curCell & 0xf) != 8 && !walledOffCells[curCell + RIGHT]){
                 neighbourCell = curCell + 1;
                 if (!seen[neighbourCell]){
@@ -196,16 +198,34 @@ class Board
     }
 
 
+    /**
+     * Updates wallsOnBoard.
+     *
+     * @param wallPlacement wallPlacement (no leading 1 -> between 0-127)
+     * @return void
+     */
     inline void updateWallsOnBoard(uint8_t wallPlacement){
         wallsOnBoard[wallPlacement] = true;
     }
 
 
+    /**
+     * Updates wallsOnBoard in undo.
+     *
+     * @param wallPlacement wallPlacement (no leading 1 -> between 0-127)
+     * @return void
+     */
     inline void updateWallsOnBoardUndo(uint8_t wallPlacement){
         wallsOnBoard[wallPlacement] = false;
     }
 
 
+    /**
+     * Updates takenWallPlaces.
+     *
+     * @param wallPlacement wallPlacement (no leading 1 -> between 0-127)
+     * @return void
+     */
     inline void updateTakenWallPlaces(uint8_t wallPlacement){
         takenWallPlaces[wallPlacement] = true;
         bool isHorizontal = wallPlacement & 0x40;
@@ -232,6 +252,12 @@ class Board
     }
 
 
+    /**
+     * Updates in undo.
+     *
+     * @param wallPlacement wallPlacement (no leading 1 -> between 0-127)
+     * @return void
+     */
     inline void updateTakenWallPlacesUndo(uint8_t wallPlacement){
         // This function recalculates taken wall places => slower than updateTakenWallPlaces
         for (int i = 0; i < 128; i++){
@@ -246,6 +272,12 @@ class Board
     }
 
 
+    /**
+     * Updates walledOffCells.
+     *
+     * @param wallPlacement wallPlacement (no leading 1 -> between 0-127)
+     * @return void
+     */
     inline void updateWalledOffCells(uint8_t wallPlacement){
         bool isHorizontal = wallPlacement & 0x40;
         uint8_t i = (wallPlacement & 56) >> 3;
@@ -267,6 +299,12 @@ class Board
     }
 
 
+    /**
+     * Updates walledOffCells in undo.
+     *
+     * @param wallPlacement wallPlacement (no leading 1 -> between 0-127)
+     * @return void
+     */
     inline void updateWalledOffCellsUndo(uint8_t wallPlacement){
         bool isHorizontal = wallPlacement & 0x40;
         uint8_t i = (wallPlacement & 56) >> 3;
@@ -288,6 +326,12 @@ class Board
     }
 
 
+    /**
+     * Executes wall placement.
+     *
+     * @param wallPlacement wallPlacement (no leading 1 -> between 0-127)
+     * @return void
+     */
     inline void executeWallPlacement(uint8_t wallPlacement){
         updateWallsOnBoard(wallPlacement);
         updateTakenWallPlaces(wallPlacement);
@@ -295,6 +339,12 @@ class Board
     }
 
 
+    /**
+     * Undoes wall placement.
+     *
+     * @param wallPlacement wallPlacement (no leading 1 -> between 0-127)
+     * @return void
+     */
     inline void undoWallPlacement(uint8_t wallPlacement){
         updateWallsOnBoardUndo(wallPlacement);
         updateTakenWallPlacesUndo(wallPlacement);
@@ -302,6 +352,13 @@ class Board
     }
 
 
+    /**
+     * Executes pawn move.
+     *
+     * @param move move encoding
+     * @param player true -> white, false -> black
+     * @return void
+     */
     inline void executePawnMove(uint8_t move, uint8_t player){
         if(player){
             (move & 8) ? whitePawn += (move & 48) : whitePawn -= (move & 48);
@@ -323,6 +380,13 @@ class Board
     }
 
 
+    /**
+     * Undoes pawn move.
+     *
+     * @param move move encoding
+     * @param player true -> white, false -> black
+     * @return void
+     */
     inline void undoPawnMove(uint8_t move, uint8_t player){
         if(player){
             (move & 8) ? whitePawn -= (move & 48) : whitePawn += (move & 48);
@@ -338,6 +402,14 @@ class Board
     }
 
 
+    /**
+     * Calculates neighbour of a cell.
+     *
+     * @param cell cell
+     * @param neighbours neighbours of the cell
+     * @param neighbourCount number of neighbours of the cell
+     * @return void -> updates @param neighbours and @param neighbourCount
+     */
     inline void getNeighbours(uint8_t cell, uint8_t* neighbours, size_t& neighbourCount){
         if((cell & 0xf) != 8 && !walledOffCells[cell + RIGHT]){
             neighbours[neighbourCount] = cell + 1;
@@ -361,6 +433,14 @@ class Board
     }
 
 
+    /**
+     * Calculates possible pawn moves.
+     *
+     * @param player true -> white, false -> black
+     * @param possibleMoves possible pawn moves
+     * @param moveCount number of possible pawn moves
+     * @return void -> updates @param possibleMoves and @param moveCount
+     */
     inline void generatePossiblePawnMoves(bool player, uint8_t* possibleMoves, size_t& moveCount){
         uint8_t iPlayer = ((player ? whitePawn : blackPawn) & 0xf0) >> 4;
         uint8_t jPlayer = (player ? whitePawn : blackPawn) & 0x0f; 
@@ -380,7 +460,8 @@ class Board
             uint8_t j = neighbour & 0x0f;
 
             if (neighbour != opponentPawn){
-                uint8_t move = (i == iPlayer ? 0 : (i > iPlayer ? 24 : 16)) + (j == jPlayer ? 0 : (j > jPlayer ? 5 : 1));   // simple pawn move
+                // simple pawn move
+                uint8_t move = (i == iPlayer ? 0 : (i > iPlayer ? 24 : 16)) + (j == jPlayer ? 0 : (j > jPlayer ? 5 : 1));   
                 possibleMoves[moveCount] = move;
                 moveCount++;
                 continue;
@@ -474,12 +555,27 @@ class Board
     }
 
 
+    /**
+     * Calculates if wall placement is safe.
+     *
+     * @param wallPlacement wall placement
+     * @return is the wall placement safe
+     */
     inline bool isSafeWallPlacement(uint8_t wallPlacement){
-        // TODO implement
+        // currently not implemented, if have too much time revisit
         return false;
     }
 
 
+    /**
+     * Adds wall placement to array, if it is valid (can turn off validation).
+     *
+     * @param wallPlacement wall placement
+     * @param possibleMoves array to which wall placement may be added
+     * @param moveCount number of elements in array
+     * @param checkValidity whether to check for validity
+     * @return void -> update @param possibleMoves and @param moveCount
+     */
     inline void addWallIfPlacementValid(uint8_t wallPlacement, uint8_t* possibleMoves, size_t& moveCount, bool checkValidity=true){
         if (takenWallPlaces[wallPlacement]){
             return;
@@ -499,6 +595,15 @@ class Board
     }
 
 
+    /**
+     * Adds valid possible wall placements to array (can turn off validation).
+     *
+     * @param player true -> white, false -> black
+     * @param possibleMoves array to which wall placements are added
+     * @param moveCount number of elements in array
+     * @param checkValidity whether to check for validity
+     * @return void -> update @param possibleMoves and @param moveCount
+     */
     inline void generatePossibleWallPlacements(bool player, uint8_t* possibleMoves, size_t& moveCount, bool checkValidity=true){
         // check whether wall placements can be made
         if ((player && !whiteWalls) || (!player && !blackWalls)){
@@ -513,6 +618,15 @@ class Board
     }
 
 
+    /**
+     * Generates probable wall placements.
+     *
+     * @param player true -> white, false -> black
+     * @param possibleMoves array of probable moves
+     * @param moveCount number of elements in array
+     * @param checkValidity whether to check for validity
+     * @return void -> update @param possibleMoves and @param moveCount
+     */
     void generateProbableWallPlacements(bool player, uint8_t* possibleMoves, size_t& moveCount, bool checkValidity=true){
         // check whether wall placements can be made
         if ((player && !whiteWalls) || (!player && !blackWalls)){
@@ -576,6 +690,12 @@ class Board
     }
 
 
+    /**
+     * Checks whether a wall placement has a neighbouring wall already palced
+     *
+     * @param wallPlacement wall placement
+     * @return whether @param wallPlacement has a neighbouring wall placed already
+     */
     inline bool hasNeighbouringWallPlacement(uint8_t wallPlacement){
         bool isHorizontal = wallPlacement & 0b01000000;
         uint8_t neighbouringWallPlacements[8];
@@ -612,6 +732,13 @@ class Board
     }
 
 
+    /**
+     * Checks move validity
+     *
+     * @param move move
+     * @param player true -> white, false -> black
+     * @return whether move is valid
+     */
     inline bool checkMoveValidity(uint8_t move, bool player){
         size_t moveCount = 0;
         uint8_t possibleMoves[256];
@@ -626,6 +753,14 @@ class Board
     }
 
 
+
+    /**
+     * heuristic to prefer pawn moves
+     *
+     * @param move move
+     * @param player true -> white, false -> black
+     * @return 100 if move is a pawn move, else 0
+     */
     inline float pawnHeuristic(uint8_t move, bool player){
         if(move < 128){
             return 100;
@@ -635,6 +770,14 @@ class Board
     }
 
 
+    
+    /**
+     * heuristic to prefer shortest-path pawn move
+     *
+     * @param move move
+     * @param player true -> white, false -> black
+     * @return 100 if move is a shortest-path pawn move, else 0
+     */
     inline float shortestPawnHeuristic(uint8_t move, bool player){
         uint8_t shortestPawnMove = generateMoveOnShortestPath(player);
         if(move == shortestPawnMove){
@@ -648,7 +791,7 @@ class Board
     /**
      * Checks if the wall placement is valid (does not block all paths to goals).
      *
-     * @param wallPlacement Wall index (0-127), but it also accepts wall placement with flag (128-255)
+     * @param wallPlacement wall placement (0-127), but it also accepts wall placement with flag (128-255)
      * @return true if wall placement is valid
      */
     inline bool isValidWallPlacement(uint8_t wallPlacement){
@@ -671,6 +814,7 @@ class Board
             walledOffCells[16 * (i + 1) + (j + 1) + LEFT] = true;
         }
 
+        // check validity
         bool validity = dfs(true) && dfs(false);
 
         // remove blockades
@@ -710,6 +854,13 @@ class Board
     }
 
 
+    /**
+     * Undoes a valid move
+     * 
+     * @param move Valid move   ASSUMPTION: move is valid to undo
+     * @param player true: white, false: black
+     * @return void
+     */
     void undoMove(uint8_t move, bool player){
         if (move >> 7){
             uint8_t wallPlacement = move & 0b01111111;
@@ -723,7 +874,7 @@ class Board
     
 
     /**
-     * Generate all legal pawn and wall moves for a player.
+     * Generate all legal moves for a player.
      *
      * @param player true: white, false: black
      * @param possibleMoves Array to hold moves
@@ -738,15 +889,21 @@ class Board
     }
 
 
+
+    /**
+     * Evaluation function used for minimax
+     * 
+     * @return evaluation value
+     */
     float evaluate(){
         if (whitePawn == 7 && blackPawn == 122){
             cout << (int) whitePawn << " " << (int) blackPawn << endl;
         }
         
+        // If winner is found -> +-infinity
         if(winner == 'w'){
             return 1000.0f;
         }
-
         if(winner == 'b'){
             return -1000.0f;
         }
@@ -822,6 +979,12 @@ class Board
     }
 
 
+    /**
+     * Generates pawn move on shortest path
+     * 
+     * @param player true: white, false: black
+     * @return pawn move on shortest path
+     */
     uint8_t generateMoveOnShortestPath(bool player){
         uint8_t startCell = player ? whitePawn : blackPawn;
         uint8_t todo[81] = {};
@@ -849,7 +1012,7 @@ class Board
                 break;
             }
 
-            // This is ugly, copy-paste is king...
+            // This is ugly, but great for performance
             if((curCell & 0xf) != 8 && !walledOffCells[curCell + RIGHT]){
                 neighbourCell = curCell + 1;
                 if (!seen[neighbourCell]){
@@ -948,8 +1111,10 @@ class Board
 
 
     /**
-     * Evaluate position
+     * Evaluate move
      * 
+     * @param move move
+     * @param player true: white, false: black
      * @return evaluation value
      */
     inline float calculateHeuristicForMove(uint8_t move, bool player) {
@@ -958,7 +1123,7 @@ class Board
 
 
     /**
-     * Places a wall if move is valid
+     * Places a wall if move is valid (human readable version)
      * 
      * @param i vertical coordinate
      * @param j horizontal coordinate
@@ -977,7 +1142,7 @@ class Board
     
 
     /**
-     * Moves pawn if move is valid
+     * Moves pawn if move is valid (human readable form)
      * 
      * @param verticalMovement vertical movement
      * @param horizontalMovement horizontal movement
@@ -1055,6 +1220,12 @@ class Board
     }
 
 
+    /**
+     * Converts board into save data
+     * 
+     * @param saveData array holding the save data bytes
+     * @return void -> update @param saveData
+     */
     void getSaveData(uint8_t* saveData){
         saveData[1] = whitePawn;
         saveData[2] = blackPawn;
@@ -1284,9 +1455,9 @@ class Board
 };
 
 
-#include <functional>
-
-
+/**
+ * hasher for board
+ */
 struct BoardHasher {
     size_t operator()(const Board& board) const {
         size_t hash = 0;

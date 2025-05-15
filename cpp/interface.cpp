@@ -32,7 +32,7 @@ extern "C" {
         }
 
         Board game = Board({whitePawn.i, whitePawn.j}, {blackPawn.i, blackPawn.j}, wallsVector, whiteWalls, blackWalls);
-        MCTS agent = MCTS(rollouts, 5, 0.5, 4, "cpp/GPmodels", true, 0);
+        MCTS agent = MCTS(rollouts, 3, 0.25, 4, "cpp/GPmodels", true, 2);
         return agent.predictBestMove(game, player);
     }
 

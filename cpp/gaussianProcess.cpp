@@ -10,7 +10,6 @@
 #include "board.cpp"
 #include <string>
 #include <iomanip>
-#include <cmath>
 
 // This file uses snake case, maybe I will change the other code in the future, but this is so much easier to read...
  
@@ -19,14 +18,26 @@ using namespace std;
 
 using input_vector = Array<uint8_t, 142, 1>;
 
+/**
+ * Gaussian Process for Quoridor
+ */
 class Quoridor_GP {
     public:
+    /**
+     * Default constructor
+     */
     Quoridor_GP(){}
 
+    /**
+     * Constructor
+     */
     Quoridor_GP(double sigma2, double lambda, vector<double> kernel_params)
         : sigma2_(sigma2), lambda_(lambda), kernel_params(kernel_params) {}
 
 
+    /**
+     * Fit GP to training set
+     */
     void fit(const vector<input_vector>& X_train, const MatrixXd& Y_train) {
         X_train_ = X_train;
         MatrixXd K = compute_kernel_matrix(X_train_, sigma2_, lambda_);
@@ -37,6 +48,9 @@ class Quoridor_GP {
     }
 
 
+    /**
+     * Make prediction distribution 
+     */
     VectorXd predict(const input_vector& x_star) const {
         VectorXd k_star = compute_kernel_vector(x_star);
         VectorXd output = k_star.transpose() * K_inv_;
@@ -50,10 +64,14 @@ class Quoridor_GP {
             }
         }
 
+        // Return normalised distribution, so can be interpreted as a probability distribution
         return normalise_output(output);
     }
 
 
+    /**
+     * Save GP to file
+     */
     void save(string filename) {
         ofstream out(filename, ios::binary);
 
@@ -82,6 +100,9 @@ class Quoridor_GP {
     }
 
 
+    /**
+     * Load GP from file
+     */
     static Quoridor_GP load(const string& filename) {
         ifstream in(filename, ios::binary);
 
@@ -117,6 +138,9 @@ class Quoridor_GP {
     }
 
 
+    /**
+     * Print model parameters and setup
+     */
     void print_model_info() const {
         cout << fixed << setprecision(4);
         cout << "Sigma2: " << sigma2_
@@ -139,6 +163,9 @@ class Quoridor_GP {
     MatrixXd K_inv_;
 
 
+    /**
+     * Calculate difference in wall placement using Hamming distance
+     */
     int wall_difference(const input_vector& x1, const input_vector& x2) const {
         int difference = 0;
         for(int i = 14; i < 142; i++){
@@ -148,6 +175,9 @@ class Quoridor_GP {
     }
 
 
+    /**
+     * Calculate kernel between two vectors
+     */
     double custom_kernel(const input_vector& x1, const input_vector& x2) const {
         // Pawn placements
         double dist = abs(x1(0) - x2(0)) + abs(x1(1) - x2(1));
@@ -171,6 +201,9 @@ class Quoridor_GP {
     }
 
 
+    /**
+     * Calculate kernel matrix
+     */
     MatrixXd compute_kernel_matrix(const vector<input_vector>& inputs, double sigma2, double lambda) const {
         int N = inputs.size();
         MatrixXd K(N, N);
@@ -184,6 +217,9 @@ class Quoridor_GP {
     }
 
 
+    /**
+     * Calculate kernel vector
+     */
     VectorXd compute_kernel_vector(const input_vector& x_star) const {
         int N = X_train_.size();
         VectorXd k_star(N);
@@ -194,6 +230,9 @@ class Quoridor_GP {
     }
 
 
+    /**
+     * Normalise vector
+     */
     VectorXd normalise_output(const VectorXd& raw_output) const {
         VectorXd result = raw_output.array().max(0.0);
         double sum = result.sum();
@@ -206,6 +245,9 @@ class Quoridor_GP {
 };
 
 
+/**
+ * Read in dataset from a save file
+ */
 void readInSaveFile(Board* boards, int distributions[][256], size_t& size, string saveFileName){
     ifstream file(saveFileName, ios::in | ios::binary);
 
@@ -236,6 +278,9 @@ void readInSaveFile(Board* boards, int distributions[][256], size_t& size, strin
 }
 
 
+/**
+ * Loads in dataset (board position: distribution)
+ */
 tuple<vector<input_vector>, MatrixXd> load_dataset(const string& filename, bool player) {
     const size_t max_boards = 1000;
     Board* boards = new Board[max_boards];
@@ -263,6 +308,9 @@ tuple<vector<input_vector>, MatrixXd> load_dataset(const string& filename, bool 
 }
 
 
+/**
+ * Hyperparameter search for GP
+ */
 Quoridor_GP hyperparameter_search(const string& train_file, const string& val_file, bool player, int num_trials = 100) {
     auto [X_train, Y_train] = load_dataset(train_file, player);
     auto [X_val, Y_val] = load_dataset(val_file, player);
@@ -274,7 +322,7 @@ Quoridor_GP hyperparameter_search(const string& train_file, const string& val_fi
     uniform_real_distribution<double> dist_lambda(5.0, 20.0);
     uniform_real_distribution<double> dist_kernel_param(0.5, 2.0);
 
-    const int kernel_param_count = 5; // Number of kernel parameters
+    const int kernel_param_count = 5;
 
     double best_loss = 1e9;
     double best_sigma2 = 0.0;
@@ -324,6 +372,10 @@ Quoridor_GP hyperparameter_search(const string& train_file, const string& val_fi
 }
 
 
+/**
+ * Fit and save GP model
+ * @param i number of walls on board
+ */
 void train_and_save_gp_model(int i) {
     string white_train_file = "datasets/datasetWhite" + to_string(i);
     string black_train_file = "datasets/datasetBlack" + to_string(i);
@@ -347,7 +399,12 @@ void train_and_save_gp_model(int i) {
 }
 
 
+/**
+ * Function used in training pipeline which trains GP models
+ * Chooses best model based on hyperparameter search
+ */
 void pre_train_models(){
+    // Threading works here: CPU heavy task, overhead is negligeble
     vector<thread> threads;
 
     for (int i = 0; i <= 20; ++i) {

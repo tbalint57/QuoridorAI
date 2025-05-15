@@ -1,8 +1,10 @@
 import pygame
 import math
+# Just a bunch of buttons for the UI
 
 CELL_COLOR = (59, 59, 61)
 
+# Circular button for placing walls
 class RoundButton():
     def __init__(self, center, radius, move):
         self.clicked = False
@@ -30,6 +32,7 @@ class RoundButton():
         return math.dist(mouse_pos, self.center) <= self.radius
     
 
+# Rectengular Buttons for pawn movement and wall selection
 class RectButton():
     def __init__(self, left, top, width, height, move, colour = CELL_COLOR, clicked = False):
         self.clicked = clicked
@@ -53,6 +56,7 @@ class RectButton():
         return self.rect.collidepoint(mouse_pos)
     
 
+# Image button for menus 
 class ImageButton():
     def __init__(self, center, image, action):
         self.clicked = False

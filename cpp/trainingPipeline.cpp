@@ -1,21 +1,23 @@
 #include <iostream>
 #include <stdint.h>
 #include "dataGeneration.cpp"
-#include <vector>
 #include <string>
-#include <algorithm>
+#include <vector>
 #include <fstream>
-#include <unordered_set>
-#include <cstdio>
 #include <random>
 #include <ctime>
-#include <array>
+#include <algorithm>
 
 
+/**
+ * Simulates game between 2 agents given by its parameters from a given starting position
+ */
 bool simulateGame(Board board, int rolloutPolicyParameter1, float mctsParameter1, int rolloutPolicyParameter2, float mctsParameter2, bool whiteMove){
+    // initialise agents
     MCTS agent1 = MCTS(ROLLOUTS, SIMULATIONS_PER_ROLLOUT, mctsParameter1, rolloutPolicyParameter1);
     MCTS agent2 = MCTS(ROLLOUTS, SIMULATIONS_PER_ROLLOUT, mctsParameter2, rolloutPolicyParameter2);
 
+    // simulation loop
     for (int i = 0; i < 40 && !board.getWinner(); i++){
         MCTS agent = whiteMove ? agent1 : agent2;
 
@@ -33,10 +35,14 @@ bool simulateGame(Board board, int rolloutPolicyParameter1, float mctsParameter1
         return false;
     }
 
+    // if there is no winner proxy it by closer pawn
     return board.whiteCloser(whiteMove);
 }
 
 
+/**
+ * Contests 2 agents given by its parameters
+ */
 int contestParameters(int rolloutPolicyParameter1, float mctsParameter1, int rolloutPolicyParameter2, float mctsParameter2){
     int difference = 0;
     bool results[16];
@@ -121,9 +127,11 @@ int contestParameters(int rolloutPolicyParameter1, float mctsParameter1, int rol
 }
 
 
-
+/** 
+ * Performs hyperparameter search on MCTS agents
+*/
 void mctsHyperParameterSearch(int& rolloutPolicyParameter, float& mctsParameter) {
-    // Step 1: Initialize 64 random parameter pairs
+    // initialize 64 random parameter pairs
     vector<pair<int, float>> population;
     random_device rd;
     mt19937 gen(rd());
@@ -136,7 +144,7 @@ void mctsHyperParameterSearch(int& rolloutPolicyParameter, float& mctsParameter)
         population.emplace_back(rpp, mctsp);
     }
 
-    // Step 2: Tournament rounds (single elimination)
+    // tournament rounds (single elimination)
     while (population.size() > 1) {
         vector<pair<int, float>> winners;
         shuffle(population.begin(), population.end(), gen);
@@ -157,12 +165,14 @@ void mctsHyperParameterSearch(int& rolloutPolicyParameter, float& mctsParameter)
         population = winners;
     }
 
-    // Step 3: Return final winner
+    // return final winner
     rolloutPolicyParameter = population[0].first;
     mctsParameter = population[0].second;
 }
 
-
+ /**
+  * Creates dataset for GP
+  */
 void createDataset() {
     // Only use before first iteration, do not recreate the dataset.
     srand(time(NULL));
@@ -176,7 +186,11 @@ void createDataset() {
 }
 
 
+/**
+ * Relabels single dataset file, using distribution generated MCTS agent 
+ */
 void relabelDatasetFile(const string& filename, bool player) {
+    // read in files
     const size_t maxBoards = 2000;
     Board* boards = new Board[maxBoards];
     int (*distributions)[256] = new int[maxBoards][256];
@@ -186,8 +200,9 @@ void relabelDatasetFile(const string& filename, bool player) {
 
     readInSaveFile(boards, distributions, size, filename);
 
-    ofstream out(filename, ios::binary | ios::trunc); // overwrite file
+    ofstream out(filename, ios::binary | ios::trunc);
 
+    // relabel and save
     for (size_t i = 0; i < size; i++) {
         int newDistribution[256] = {0};
         agent.predictDistribution(boards[i], player, newDistribution);
@@ -206,6 +221,9 @@ void relabelDatasetFile(const string& filename, bool player) {
 }
 
 
+/**
+ * Relabels the dataset files
+ */
 void relabelDatasets() {
     for (int w = 0; w <= 20; w++) {
         relabelDatasetFile("datasets/datasetWhite" + to_string(w) + ".train", true);
@@ -217,6 +235,9 @@ void relabelDatasets() {
 }
 
 
+/**
+ * script used for a single training loop
+ */
 int main(int argc, char const* argv[]) {
     ROLLOUTS = 10000;
     SIMULATIONS_PER_ROLLOUT = 3;
@@ -227,17 +248,20 @@ int main(int argc, char const* argv[]) {
     auto end = high_resolution_clock::now();
     duration<double> elapsed = end - start;
 
+    // MCTS hyperparam search
     mctsHyperParameterSearch(ROLLOUT_PARAMETER, MCTS_PARAMETER);
     end = high_resolution_clock::now();
     elapsed = end - start;
     std::cout << "MCTS hyperparameter search finished, execution time: " << elapsed.count() / 3600 << " hours\n";
     cout << "Best params: " << ROLLOUT_PARAMETER << " " << MCTS_PARAMETER << endl;
 
+    // Dataset relabel
     relabelDatasets();
     end = high_resolution_clock::now();
     elapsed = end - start;
     std::cout << "Relabeling dataset finished, execution time: " << elapsed.count() / 3600 << " hours\n";
 
+    // GP training
     pre_train_models();
     end = high_resolution_clock::now();
     elapsed = end - start;

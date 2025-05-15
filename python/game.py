@@ -1,6 +1,7 @@
-from cppInterface import getPossibleMoves, calculateBestMove
+from cppInterface import getPossibleMoves
 from typing import Tuple
 
+# Game state representation in python. Only stores and converts information.
 class Game:
     def __init__(self, 
                  whitePawn: Tuple[int, int] = (0, 4), 
@@ -18,6 +19,7 @@ class Game:
         self.winner: str = winner
 
 
+    # translates C++ move representation (byte) into python move representation (Tuple)
     @staticmethod
     def translateMove(moveChar: int) -> Tuple[bool, Tuple[int, int], bool]: 
         def checkBit(k):
@@ -43,6 +45,7 @@ class Game:
         return (isWallPlacement, (i, j), None)
     
 
+    # translates python move representation (Tuple) int C++ move representation (byte)
     @staticmethod
     def compressMove(move: Tuple[bool, Tuple[int, int], bool]) -> int:
         isWall, position, isHorizontal = move
@@ -72,6 +75,7 @@ class Game:
         return moveChar
 
 
+    # executes move on board
     def executeMove(self, move: Tuple[bool, Tuple[int, int], bool], isWhitePlayer: bool) -> None:
         isWallPlacement, (i, j), isHorizontal = move
         if isWallPlacement:
@@ -97,6 +101,7 @@ class Game:
             self.winner = "black"
 
 
+    # generates possible moves (by calling C++ representation)
     def generatePossibleMoves(self, player: bool) -> list[Tuple[bool, Tuple[int, int], bool]]:
         possibleMoveChars = getPossibleMoves(self, player)
         return [self.translateMove(moveChar) for moveChar in possibleMoveChars]

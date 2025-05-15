@@ -6,13 +6,13 @@
 #include <atomic>
 #include <future>
 #include <Eigen/Dense>
-#include <filesystem> 
+#include <filesystem>
 #include "gaussianProcess.cpp"
+
 
 using namespace Eigen;
 
-float MCTS_CONST = 0.42;
-
+float MCTS_CONST = 0.25;
 
 /**
  * Represents a node in the game tree for the Quoridor AI.
@@ -21,13 +21,13 @@ float MCTS_CONST = 0.42;
 class Node
 {
 public:
-    Node** children = nullptr;
-    Node* parent;
-    bool player;
-    bool expanded;
-    int whiteWins;
-    int blackWins;
-    int heuristicValue;
+    Node** children = nullptr;  ///<Pointers to children Nodes
+    Node* parent;   ///<Pointer to parent node
+    bool player;    ///<player
+    bool expanded;  ///<is node expanded
+    int whiteWins;  ///<number of white wins simulated from the node
+    int blackWins;  ///<number of black wins simulated from the node
+    int heuristicValue; ///<heuristic value assigned to the node
 
 
     /**
@@ -47,7 +47,7 @@ public:
         // Do not want to preallocate, as that would result in a ~100x memory usage.
         this->children = (Node**) malloc(256 * sizeof(Node*));
 
-        // Init to nullptr, so we avoid that nasty-nasty segfault.
+        // Init to nullptr, so we avoid those nasty-nasty segfaults.
         for(int i = 0; i < 256; i++){
             this->children[i] = nullptr;
         }
@@ -55,6 +55,7 @@ public:
         this->expanded = true;
 
         if (model) {
+            // Use GP to predict heuristic
             VectorXd childrenHeuristic = model->predict(board->toInputVector(player));
             for(int i = 0; i < moveCount; i++){
                 uint8_t child = possibleMoves[i];    
@@ -72,7 +73,7 @@ public:
 
 
     /**
-     * Calculates the value of the node based on MCTS and heuristic evaluation.
+     * Calculates the UCT value of the node based on MCTS and heuristic evaluation.
      *
      * @param player Perspective of the player (true = white, false = black)
      * @param mctsParameter Exploration constant used in UCT formula
@@ -125,30 +126,35 @@ public:
             }
         }
 
-        // Free the array of child pointers, yes, it has been pointed out, that I should've used new and delete instead...
+        // Free the array of child pointers, 
+        // Yes, it has been pointed out, that I should've used new and delete instead 
+        // Yes, I tried to use a malloc-delete combination, compiler did not catch it, but it obviously did not work
         free(this->children); 
     }
 };
 
 
+/**
+ * MCTS agent
+ */
 class MCTS
 {
     public: 
 
-    Quoridor_GP whiteModels[21] = {};
-    Quoridor_GP blackModels[21] = {};
-    Quoridor_GP smallWhiteModels[21] = {};
-    Quoridor_GP smallBlackModels[21] = {};
+    Quoridor_GP whiteModels[21] = {};   ///<GP models used for white nodes
+    Quoridor_GP blackModels[21] = {};   ///<GP models used for black nodes
+    Quoridor_GP smallWhiteModels[21] = {};  ///<GP models used for white nodes (small)
+    Quoridor_GP smallBlackModels[21] = {};  ///<GP models used for black nodes (small)
 
-    int rollouts = 50000;
-    int simulationsPerRollout = 5;
+    int rollouts = 50000;   ///<number of rollouts
+    int simulationsPerRollout = 3;  ///<simulations per rollout
 
-    float mctsParameter = 0.5;
-    int rolloutPolicyParameter = 4;
+    float mctsParameter = 0.25; ///<mcts parameter (c)
+    int rolloutPolicyParameter = 4; ///<rollout policy parameter
 
-    string modelDirectory = "GPmodels";
-    bool useModelForUCT = true;
-    int rolloutPolicyFunction = 2;
+    string modelDirectory = "GPmodels"; ///<directory of GP model save files
+    bool useModelForUCT = true; ///<model usage for UCT
+    int rolloutPolicyFunction = 2;  ///<rollout policy function used
 
     /**
      * Loads in all the GP models from the model directory
@@ -181,6 +187,12 @@ class MCTS
      * @return uint8_t Best move determined by MCTS
      */
     uint8_t predictBestMove(Board state, bool whiteTurn){
+        // Speed up endgame decisions
+        bool playerHasNoWall = (whiteTurn && !state.whiteWalls) || (!whiteTurn && !state.blackWalls);
+        if(playerHasNoWall){
+            return state.generateMoveOnShortestPath(whiteTurn);
+        }
+
         Node* mctsTree = buildTree(state, whiteTurn);
         uint8_t bestMove = mostVisitedMove(mctsTree);
 
@@ -326,7 +338,7 @@ class MCTS
         VectorXd pred = model->predict(board->toInputVector(player));
 
         for(int i = 0; i < 10; i++){
-            // If predicyion is a uniform distribution, do not bother!!!
+            // If prediction is a uniform distribution, do not bother (may choose illegal move), this was fun to debug...
             if (pred(0) > 0){
                 break;
             }
@@ -623,13 +635,24 @@ class MCTS
 };
 
 
-// It finially works again, though its performance is rather poor...
-
+/**
+ * Minimax agent
+ */
 class Minimax {
     public:
 
-    int minmaxDepth;
+    int minmaxDepth;    ///<depth of minimax search
 
+    /**
+     * Does minimax with alpha-beta pruning
+     * 
+     * @param board board
+     * @param depth simulation depth
+     * @param player true: white, false: black
+     * @param alpha alpha value
+     * @param beta beta value
+     * return minimax value
+     */
     float minimax(Board* board, int depth, bool player, float alpha, float beta){
     
         if (depth == 0){
@@ -683,6 +706,14 @@ class Minimax {
         return 0;
     }
     
+
+    /**
+     * Predicts best move for a given board position and player
+     * 
+     * @param board board
+     * @param depth simulation depth
+     * return predicted best move
+     */
     uint8_t predictBestMove(Board* board, bool player){
         int depth = minmaxDepth;
         uint8_t bestMove;
@@ -747,6 +778,9 @@ class Minimax {
         return bestMove;
     }
 
+    /**
+     * Minimax constructor
+     */
     Minimax(int minimaxDepth){
         this->minmaxDepth = minimaxDepth;
     }

@@ -9,10 +9,6 @@ import time
 from datetime import datetime
 import shutil
 
-# Modifications during holiday to talk about:
-#     * code cleanup
-#     * saving and veiwing past matches finally works
-
 pygame.init()
 
 # Define board settings
@@ -41,6 +37,7 @@ images_path = os.path.join(own_dir, 'images/')
 images = {image[:-4]: pygame.image.load(images_path + image) for image in os.listdir(images_path)}
 
 
+# Calculate from board indexing to pixel coordinates
 def cellToRealCoordinates(row, col):
     x = col * (CELL_SIZE + SPACING)
     y = row * (CELL_SIZE + SPACING)
@@ -78,7 +75,7 @@ def drawBoard(gameState):
             drawWall(wall)
 
     def drawText(text, position, color=(255, 255, 255)):
-        font = pygame.font.Font(None, 36)  # Set font and size
+        font = pygame.font.Font(None, 36)
         textSurface = font.render(text, True, color)
         screen.blit(textSurface, position)
 
@@ -188,7 +185,8 @@ def getMovePlayer(board):
         
 
 def getMoveSpectate(board: Board):
-    while True:
+    running = True
+    while running:
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 move = board.moves[board.currentMove]
@@ -351,6 +349,7 @@ def quit():
 
 
 def endOfGamePage(winner):
+    # Sleep is here, so menu buttons are not accidently clicked after a game
     time.sleep(1)
     print("endOfGamePage")
     font = pygame.font.Font(None, 74)
